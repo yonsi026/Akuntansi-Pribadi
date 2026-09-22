@@ -1,0 +1,6 @@
+{
+  "name": "Akuntan AI UMKM",
+  "description": "Asisten akuntansi pintar dan pembukuan SAK EMKM untuk UMKM Indonesia dengan neraca saldo, laba rugi, neraca, arus kas, manajemen stok rata-rata (HPP), PPh Final 0.5% & PPN, serta rekomendasi bisnis cerdas bertenaga Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
