@@ -133,3 +133,19 @@ export interface StoreConfig {
   demoProducts: DemoProduct[];
 }
 
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  username: string;
+  password?: string;
+  storeName: string;
+  storeType: string;
+  storeCity: string;
+  storeAddress?: string;
+  storeNpwp?: string;
+  role: 'owner' | 'accountant' | 'staff';
+  createdAt: string;
+  lastLoginAt?: string;
+}
+

@@ -8,9 +8,13 @@ import {
   BrainCircuit,
   Wallet,
   Coins,
-  Settings
+  Settings,
+  BookText,
+  LogOut,
+  Globe,
+  User as UserIcon
 } from "lucide-react";
-import { Transaction, StockItem, FinancialStats, StoreConfig } from "./types";
+import { Transaction, StockItem, FinancialStats, StoreConfig, UserAccount } from "./types";
 import { 
   generateJournal, 
   computeFinancialStats, 
@@ -26,9 +30,14 @@ import { TaxCalculator } from "./components/TaxCalculator";
 import { AiAssistant } from "./components/AiAssistant";
 import { StoreSettings, DEFAULT_STORE_CONFIG } from "./components/StoreSettings";
 import { CloudSync } from "./components/CloudSync";
+import { AccountDocumentation } from "./components/AccountDocumentation";
+import { LandingPage } from "./components/LandingPage";
+import { getCurrentUser, logoutUser } from "./utils/authService";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
 
   // Local storage state keys
   const LOCAL_STORAGE_TX_KEY = "akuntan_ai_transactions_v1";
@@ -42,6 +51,12 @@ export default function App() {
 
   // 1. Initial State Loading from LocalStorage on mount
   useEffect(() => {
+    // Check active user session
+    const activeSession = getCurrentUser();
+    if (activeSession) {
+      setCurrentUser(activeSession);
+    }
+
     const loadedTx = localStorage.getItem(LOCAL_STORAGE_TX_KEY);
     const loadedStock = localStorage.getItem(LOCAL_STORAGE_STOCK_KEY);
     const loadedConfig = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
@@ -68,6 +83,30 @@ export default function App() {
       }
     }
   }, []);
+
+  const handleLoginSuccess = (user: UserAccount) => {
+    setCurrentUser(user);
+    setShowLandingPage(false);
+
+    // If new user registered with customized store info, synchronize it
+    if (user.storeName && user.storeName !== storeConfig.storeName) {
+      const updatedConfig: StoreConfig = {
+        ...storeConfig,
+        storeName: user.storeName,
+        storeType: user.storeType || storeConfig.storeType,
+        storeCity: user.storeCity || storeConfig.storeCity,
+        storeAddress: user.storeAddress || storeConfig.storeAddress,
+        storeNpwp: user.storeNpwp || storeConfig.storeNpwp
+      };
+      handleSaveStoreConfig(updatedConfig);
+    }
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setShowLandingPage(true);
+  };
 
   const handleSaveStoreConfig = (newConfig: StoreConfig) => {
     setStoreConfig(newConfig);
@@ -311,6 +350,11 @@ export default function App() {
   const journalEntries = generateJournal(transactions);
   const stats = computeFinancialStats(transactions, journalEntries);
 
+  // If landing page is active, render LandingPage with Login & Register forms
+  if (showLandingPage) {
+    return <LandingPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans" id="applet-container">
       {/* Dynamic Header */}
@@ -328,18 +372,51 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Store Type Quick Jump */}
             <span 
               onClick={() => setActiveTab("pengaturan")}
-              className="hidden md:inline-flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer"
+              className="hidden lg:inline-flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer transition"
+              title="Klik untuk mengubah profil &amp; informasi toko"
             >
               <Wallet className="w-3.5 h-3.5 text-slate-500" />
-              <span>Usaha: {storeConfig.storeType} ({storeConfig.storeCity}) ⚙️</span>
+              <span>{storeConfig.storeType} ({storeConfig.storeCity}) ⚙️</span>
             </span>
-            <div className="text-right">
-              <p className="text-[10px] text-slate-400 font-bold">WAKTU AKTIF (UTC)</p>
-              <p className="text-xs font-mono font-bold text-slate-700">2026-06-11</p>
+
+            {/* Active Logged-in User Info */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+              <div className="w-6 h-6 rounded-full bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-[10px]">
+                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+              </div>
+              <div className="text-left">
+                <p className="font-bold text-slate-800 leading-tight truncate max-w-[130px]">
+                  {currentUser?.name || "Budi Santoso"}
+                </p>
+                <p className="text-[10px] text-slate-400 leading-tight capitalize">
+                  {currentUser?.role === "owner" ? "Pemilik Usaha" : "Akuntan Toko"}
+                </p>
+              </div>
             </div>
+
+            {/* Back to Landing Page button */}
+            <button
+              onClick={() => setShowLandingPage(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer"
+              title="Lihat Landing Page &amp; Brosur Fitur"
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Landing Page</span>
+            </button>
+
+            {/* Logout button */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+              title="Keluar / Beralih Akun Toko"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-600" />
+              <span>Keluar</span>
+            </button>
           </div>
         </div>
       </header>
@@ -407,6 +484,18 @@ export default function App() {
           >
             <Percent className="w-4 h-4" />
             Perpajakan UMKM
+          </button>
+
+          <button
+            onClick={() => setActiveTab("dokumen")}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+              activeTab === "dokumen" 
+                ? "bg-slate-900 text-white shadow-xs" 
+                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            <BookText className="w-4 h-4 text-amber-400" />
+            Dokumen
           </button>
 
           <button
@@ -481,6 +570,10 @@ export default function App() {
               stats={stats}
               storeConfig={storeConfig}
             />
+          )}
+
+          {activeTab === "dokumen" && (
+            <AccountDocumentation storeConfig={storeConfig} />
           )}
 
           {activeTab === "asisten" && (
