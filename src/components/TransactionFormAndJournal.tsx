@@ -9,7 +9,26 @@ import {
   Trash2,
   Printer,
   FileText,
-  CheckCircle
+  CheckCircle,
+  Briefcase,
+  Zap,
+  Building2,
+  Boxes,
+  Wifi,
+  ShoppingBag,
+  Wrench,
+  ShoppingCart,
+  Truck,
+  Sparkles,
+  Info,
+  DollarSign,
+  Search,
+  Filter,
+  Layers,
+  Calendar,
+  User,
+  Tag,
+  AlertCircle
 } from "lucide-react";
 import { Transaction, TransactionType, StockItem, JournalEntry, LedgerItem, StoreConfig } from "../types";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
@@ -23,6 +42,160 @@ interface TransactionFormAndJournalProps {
   onClearTransactions: () => void;
   storeConfig?: StoreConfig;
 }
+
+interface PresetAction {
+  type: TransactionType;
+  label: string;
+  badge: string;
+  desc: string;
+  icon: any;
+  borderClass: string;
+  bgActive: string;
+  badgeClass: string;
+}
+
+const PRESET_ACTIONS: PresetAction[] = [
+  {
+    type: 'Gaji Karyawan',
+    label: 'Gaji & Upah Staf',
+    badge: 'Akun 6001',
+    desc: 'Gaji bulanan, harian, lembur staf',
+    icon: Briefcase,
+    borderClass: 'border-violet-200 hover:border-violet-400 bg-violet-50/70',
+    bgActive: 'bg-violet-600 text-white border-violet-600 shadow-sm ring-2 ring-violet-300',
+    badgeClass: 'bg-violet-100 text-violet-800'
+  },
+  {
+    type: 'Listrik & Air',
+    label: 'Listrik, Air & Gas',
+    badge: 'Akun 6003',
+    desc: 'Token PLN, PDAM, tabung gas',
+    icon: Zap,
+    borderClass: 'border-amber-200 hover:border-amber-400 bg-amber-50/70',
+    bgActive: 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-300',
+    badgeClass: 'bg-amber-100 text-amber-800'
+  },
+  {
+    type: 'Sewa Toko',
+    label: 'Sewa Ruko / Tempat',
+    badge: 'Akun 6002',
+    desc: 'Sewa ruko, kios, toko bulanan/tahunan',
+    icon: Building2,
+    borderClass: 'border-sky-200 hover:border-sky-400 bg-sky-50/70',
+    bgActive: 'bg-sky-600 text-white border-sky-600 shadow-sm ring-2 ring-sky-300',
+    badgeClass: 'bg-sky-100 text-sky-800'
+  },
+  {
+    type: 'Beli Inventaris',
+    label: 'Inventaris & Furniture',
+    badge: 'Aset Tetap (1005)',
+    desc: 'Rak display, etalase, meja kasir, AC, showcase',
+    icon: Boxes,
+    borderClass: 'border-emerald-200 hover:border-emerald-400 bg-emerald-50/70',
+    bgActive: 'bg-emerald-700 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-300',
+    badgeClass: 'bg-emerald-100 text-emerald-800'
+  },
+  {
+    type: 'Internet & Pulsa',
+    label: 'Internet & Pulsa',
+    badge: 'Akun 6004',
+    desc: 'WiFi toko, paket data, telepon',
+    icon: Wifi,
+    borderClass: 'border-cyan-200 hover:border-cyan-400 bg-cyan-50/70',
+    bgActive: 'bg-cyan-600 text-white border-cyan-600 shadow-sm ring-2 ring-cyan-300',
+    badgeClass: 'bg-cyan-100 text-cyan-800'
+  },
+  {
+    type: 'Perlengkapan Toko',
+    label: 'Perlengkapan & ATK',
+    badge: 'Akun 6005',
+    desc: 'Kresek belanja, kertas kasir, lakban',
+    icon: ShoppingBag,
+    borderClass: 'border-teal-200 hover:border-teal-400 bg-teal-50/70',
+    bgActive: 'bg-teal-600 text-white border-teal-600 shadow-sm ring-2 ring-teal-300',
+    badgeClass: 'bg-teal-100 text-teal-800'
+  },
+  {
+    type: 'Servis & Perbaikan',
+    label: 'Servis & Pemeliharaan',
+    badge: 'Akun 6007',
+    desc: 'Servis AC, listrik toko, perbaikan etalase',
+    icon: Wrench,
+    borderClass: 'border-orange-200 hover:border-orange-400 bg-orange-50/70',
+    bgActive: 'bg-orange-600 text-white border-orange-600 shadow-sm ring-2 ring-orange-300',
+    badgeClass: 'bg-orange-100 text-orange-800'
+  },
+  {
+    type: 'Penjualan',
+    label: 'Penjualan Retail',
+    badge: 'Akun 4001',
+    desc: 'Penjualan barang dagang ke konsumen',
+    icon: ShoppingCart,
+    borderClass: 'border-green-200 hover:border-green-400 bg-green-50/70',
+    bgActive: 'bg-green-600 text-white border-green-600 shadow-sm ring-2 ring-green-300',
+    badgeClass: 'bg-green-100 text-green-800'
+  },
+  {
+    type: 'Pembelian',
+    label: 'Kulakan Stok',
+    badge: 'Akun 1003',
+    desc: 'Beli persediaan barang dagangan',
+    icon: Truck,
+    borderClass: 'border-blue-200 hover:border-blue-400 bg-blue-50/70',
+    bgActive: 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-300',
+    badgeClass: 'bg-blue-100 text-blue-800'
+  },
+  {
+    type: 'Biaya Operasional',
+    label: 'Operasional Lainnya',
+    badge: 'Akun 6008',
+    desc: 'Kebersihan, retribusi, transportasi',
+    icon: FileText,
+    borderClass: 'border-slate-200 hover:border-slate-400 bg-slate-50',
+    bgActive: 'bg-slate-800 text-white border-slate-800 shadow-sm ring-2 ring-slate-300',
+    badgeClass: 'bg-slate-200 text-slate-800'
+  },
+  {
+    type: 'Setor Modal',
+    label: 'Setoran Modal',
+    badge: 'Akun 3001',
+    desc: 'Suntikan dana modal kas pemilik',
+    icon: Coins,
+    borderClass: 'border-purple-200 hover:border-purple-400 bg-purple-50/70',
+    bgActive: 'bg-purple-600 text-white border-purple-600 shadow-sm ring-2 ring-purple-300',
+    badgeClass: 'bg-purple-100 text-purple-800'
+  },
+  {
+    type: 'Tarik Prive',
+    label: 'Prive Pribadi',
+    badge: 'Akun 3002',
+    desc: 'Pengambilan uang pribadi pemilik',
+    icon: ArrowRightLeft,
+    borderClass: 'border-rose-200 hover:border-rose-400 bg-rose-50/70',
+    bgActive: 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-300',
+    badgeClass: 'bg-rose-100 text-rose-800'
+  },
+  {
+    type: 'Pembayaran Hutang',
+    label: 'Bayar Utang Usaha',
+    badge: 'Akun 2001',
+    desc: 'Pelunasan faktur utang dagang supplier',
+    icon: CheckCircle,
+    borderClass: 'border-indigo-200 hover:border-indigo-400 bg-indigo-50/70',
+    bgActive: 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-300',
+    badgeClass: 'bg-indigo-100 text-indigo-800'
+  },
+  {
+    type: 'Lainnya',
+    label: 'Jurnal Manual / Lainnya',
+    badge: 'Kustom',
+    desc: 'Entri jurnal debit/kredit bebas',
+    icon: PlusCircle,
+    borderClass: 'border-slate-200 hover:border-slate-400 bg-slate-50',
+    bgActive: 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-300',
+    badgeClass: 'bg-slate-200 text-slate-700'
+  }
+];
 
 export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps> = ({
   transactions,
@@ -59,11 +232,132 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
   const [stockQuantity, setStockQuantity] = useState<number>(1);
   const [stockPricePerUnit, setStockPricePerUnit] = useState<number>(0);
 
-  // Expense specifics
-  const [selectedExpenseAccount, setSelectedExpenseAccount] = useState<number>(6005); // Beban Lain-lain
+  // Operational & Fixed Asset Specific Helper States
+  // 1. Gaji Karyawan
+  const [salaryEmployeeName, setSalaryEmployeeName] = useState<string>("");
+  const [salaryType, setSalaryType] = useState<string>("Gaji Pokok Bulanan");
+  const [salaryPeriod, setSalaryPeriod] = useState<string>(() => {
+    const now = new Date();
+    return now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  });
+  const [salaryStaffCount, setSalaryStaffCount] = useState<number>(1);
+  const [salaryPaymentSource, setSalaryPaymentSource] = useState<string>("1001"); // 1001 (Kas) or 2004 (Utang Gaji)
+
+  // 2. Listrik, Air & Gas (Utilitas)
+  const [utilityCategory, setUtilityCategory] = useState<string>("Token Listrik PLN");
+  const [utilityMeterNumber, setUtilityMeterNumber] = useState<string>("");
+  const [utilityPeriod, setUtilityPeriod] = useState<string>(() => {
+    const now = new Date();
+    return now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  });
+
+  // 3. Sewa Toko / Ruko
+  const [rentalDuration, setRentalDuration] = useState<string>("1 Bulan");
+  const [rentalUnitName, setRentalUnitName] = useState<string>("");
+  const [rentalLandlord, setRentalLandlord] = useState<string>("");
+
+  // 4. Inventaris & Furniture (Aset Tetap 1005)
+  const [inventoryCategory, setInventoryCategory] = useState<string>("Rak Gondola Display Toko");
+  const [inventorySpecs, setInventorySpecs] = useState<string>("");
+  const [inventoryQty, setInventoryQty] = useState<number>(1);
+  const [inventoryUsefulLife, setInventoryUsefulLife] = useState<string>("4 Tahun (Fiskal Gol. 1)");
+
+  // 5. Internet & Pulsa
+  const [internetProvider, setInternetProvider] = useState<string>("IndiHome Toko");
+  const [internetAccNumber, setInternetAccNumber] = useState<string>("");
+
+  // 6. Perlengkapan & ATK Toko
+  const [supplyType, setSupplyType] = useState<string>("Kantong Plastik & Kresek Belanja");
+  const [supplyNotes, setSupplyNotes] = useState<string>("");
+
+  // 7. Servis & Perbaikan Toko
+  const [repairType, setRepairType] = useState<string>("Servis AC Toko & Cuci Filter");
+  const [repairVendor, setRepairVendor] = useState<string>("");
+
+  // History search & filter
+  const [historyCategoryFilter, setHistoryCategoryFilter] = useState<string>("Semua");
+  const [historySearchQuery, setHistorySearchQuery] = useState<string>("");
 
   // Ledger Filter State
   const [filteredAccountId, setFilteredAccountId] = useState<number>(1001); // Default Kas
+
+  // Helper to generate default description based on type and input details
+  const updateAutoDescription = (newType: TransactionType) => {
+    switch (newType) {
+      case "Gaji Karyawan": {
+        const staffText = salaryEmployeeName.trim() ? ` (${salaryEmployeeName.trim()})` : (salaryStaffCount > 1 ? ` (${salaryStaffCount} Staf)` : " Staf Toko");
+        setDescription(`Pembayaran ${salaryType}${staffText} - Periode ${salaryPeriod}`);
+        break;
+      }
+      case "Listrik & Air": {
+        const meterText = utilityMeterNumber.trim() ? ` (ID: ${utilityMeterNumber.trim()})` : "";
+        setDescription(`Pembayaran ${utilityCategory}${meterText} - Periode ${utilityPeriod}`);
+        break;
+      }
+      case "Sewa Toko": {
+        const rukoText = rentalUnitName.trim() ? ` - ${rentalUnitName.trim()}` : "";
+        const ownerText = rentalLandlord.trim() ? ` (Pemilik: ${rentalLandlord.trim()})` : "";
+        setDescription(`Pembayaran Sewa Toko/Ruko (Periode ${rentalDuration})${rukoText}${ownerText}`);
+        break;
+      }
+      case "Beli Inventaris": {
+        const specText = inventorySpecs.trim() ? ` (${inventorySpecs.trim()})` : "";
+        setDescription(`Pembelian Aset Inventaris Toko: ${inventoryQty} Unit ${inventoryCategory}${specText}`);
+        break;
+      }
+      case "Internet & Pulsa": {
+        const accText = internetAccNumber.trim() ? ` (No: ${internetAccNumber.trim()})` : "";
+        setDescription(`Pembayaran Tagihan Internet & Pulsa Toko ${internetProvider}${accText}`);
+        break;
+      }
+      case "Perlengkapan Toko": {
+        const notesText = supplyNotes.trim() ? ` - ${supplyNotes.trim()}` : "";
+        setDescription(`Pembelian Perlengkapan Toko: ${supplyType}${notesText}`);
+        break;
+      }
+      case "Servis & Perbaikan": {
+        const vendorText = repairVendor.trim() ? ` (Teknisi: ${repairVendor.trim()})` : "";
+        setDescription(`Biaya Pemeliharaan Toko: ${repairType}${vendorText}`);
+        break;
+      }
+      case "Penjualan":
+      case "Penjualan Stok": {
+        const item = stockItems.find(i => i.id === selectedStockItemId);
+        if (item) {
+          setDescription(`Penjualan ${item.name} sebanyak ${stockQuantity} ${item.unit}`);
+        } else {
+          setDescription("Penjualan Barang Dagangan Tunai Kasir");
+        }
+        break;
+      }
+      case "Pembelian":
+      case "Pembelian Stok": {
+        const item = stockItems.find(i => i.id === selectedStockItemId);
+        if (item) {
+          setDescription(`Kulakan Stok ${item.name} sebanyak ${stockQuantity} ${item.unit}`);
+        } else {
+          setDescription("Pembelian Stok Barang Dagang Toko");
+        }
+        break;
+      }
+      case "Biaya Operasional":
+      case "Pengeluaran":
+        setDescription("Biaya Operasional Rutin Toko");
+        break;
+      case "Setor Modal":
+      case "Penerimaan":
+        setDescription("Setoran Tambahan Modal Pemilik Usaha");
+        break;
+      case "Tarik Prive":
+        setDescription("Penarikan Prive Pribadi oleh Pemilik Toko");
+        break;
+      case "Pembayaran Hutang":
+        setDescription("Pembayaran Pelunasan Utang Usaha ke Supplier");
+        break;
+      default:
+        break;
+    }
+  };
 
   // Side-effect: auto-calculate amount if stock transaction is active
   useEffect(() => {
@@ -103,20 +397,44 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
     } else if (type === 'Pembelian' || type === 'Pembelian Stok') {
       setDebitAccountSelect("1003"); // Persediaan Barang Dagang
       setCreditAccountSelect("1001"); // Kas & Setara Kas
-    } else if (type === 'Biaya Operasional' || type === 'Pengeluaran') {
-      setDebitAccountSelect("6005"); // Beban Lain-lain
+    } else if (type === 'Gaji Karyawan') {
+      setDebitAccountSelect("6001"); // Beban Gaji & Upah Karyawan
+      setCreditAccountSelect(salaryPaymentSource || "1001"); // Kas (1001) or Utang Gaji (2004)
+    } else if (type === 'Listrik & Air') {
+      setDebitAccountSelect("6003"); // Beban Listrik, Air & Gas
       setCreditAccountSelect("1001"); // Kas & Setara Kas
-    } else if (type === 'Penerimaan') {
+    } else if (type === 'Sewa Toko') {
+      setDebitAccountSelect("6002"); // Beban Sewa Ruko/Tempat
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
+    } else if (type === 'Beli Inventaris') {
+      setDebitAccountSelect("1005"); // Aset Tetap - Peralatan & Inventaris Furniture
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
+    } else if (type === 'Internet & Pulsa') {
+      setDebitAccountSelect("6004"); // Beban Internet, Pulsa & Komunikasi
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
+    } else if (type === 'Perlengkapan Toko') {
+      setDebitAccountSelect("6005"); // Beban Perlengkapan & ATK Toko
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
+    } else if (type === 'Servis & Perbaikan') {
+      setDebitAccountSelect("6007"); // Beban Pemeliharaan & Perbaikan
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
+    } else if (type === 'Biaya Operasional' || type === 'Pengeluaran') {
+      setDebitAccountSelect("6008"); // Beban Operasional Lain-lain
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
+    } else if (type === 'Setor Modal' || type === 'Penerimaan') {
       setDebitAccountSelect("1001"); // Kas & Setara Kas
       setCreditAccountSelect("3001"); // Modal Pemilik
+    } else if (type === 'Tarik Prive') {
+      setDebitAccountSelect("3002"); // Prive Pemilik
+      setCreditAccountSelect("1001"); // Kas & Setara Kas
     } else if (type === 'Pembayaran Hutang') {
       setDebitAccountSelect("2001"); // Utang Usaha (Debit to reduce liability)
       setCreditAccountSelect("1001"); // Kas (Credit to reduce asset)
     } else if (type === 'Lainnya') {
       setDebitAccountSelect("1001"); // Kas & Setara Kas
-      setCreditAccountSelect("6005"); // Beban Lain-lain
+      setCreditAccountSelect("6008"); // Beban Operasional Lain-lain
     }
-  }, [type]);
+  }, [type, salaryPaymentSource]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,6 +539,27 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
       invoiceNumber: finalInvoiceNumber
     };
 
+    // Attach operational & fixed asset metadata
+    if (type === 'Gaji Karyawan') {
+      transactionData.operationalCategory = 'Gaji';
+      transactionData.employeeName = salaryEmployeeName.trim() || undefined;
+    } else if (type === 'Listrik & Air') {
+      transactionData.operationalCategory = 'Listrik';
+      transactionData.utilityType = utilityCategory;
+    } else if (type === 'Sewa Toko') {
+      transactionData.operationalCategory = 'Sewa';
+      transactionData.rentalPeriod = rentalDuration;
+    } else if (type === 'Beli Inventaris') {
+      transactionData.operationalCategory = 'Inventaris';
+      transactionData.assetType = inventoryCategory;
+    } else if (type === 'Internet & Pulsa') {
+      transactionData.operationalCategory = 'Internet';
+    } else if (type === 'Perlengkapan Toko') {
+      transactionData.operationalCategory = 'Perlengkapan';
+    } else if (type === 'Servis & Perbaikan') {
+      transactionData.operationalCategory = 'Servis';
+    }
+
     // Attach stock properties if relevant
     if (isInventoryTx && selectedStockItemId) {
       transactionData.stockItemId = selectedStockItemId;
@@ -301,7 +640,8 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
       </div>
 
       {subTab === 'input' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="input-view">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="input-view">
           {/* Main Enter Form */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
             <div className="flex justify-between items-center border-b border-slate-50 pb-3">
@@ -312,6 +652,50 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
               <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg">
                 Double-Entry Engine
               </span>
+            </div>
+
+            {/* Quick Presets Bar */}
+            <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                  Pilih Kategori Transaksi Cepat (Preset SAK EMKM)
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">Klik untuk mengatur akun otomatis</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                {PRESET_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+                  const isCurrent = type === action.type;
+                  return (
+                    <button
+                      key={action.type}
+                      type="button"
+                      onClick={() => {
+                        setType(action.type);
+                        updateAutoDescription(action.type);
+                      }}
+                      className={`flex flex-col items-start p-2 rounded-xl border text-left transition cursor-pointer ${
+                        isCurrent
+                          ? action.bgActive
+                          : `${action.borderClass} text-slate-700`
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <Icon className={`w-3.5 h-3.5 ${isCurrent ? 'text-white' : 'text-slate-600'}`} />
+                        <span className={`text-[9px] font-mono px-1 py-0.2 rounded font-bold ${
+                          isCurrent ? 'bg-white/20 text-white' : action.badgeClass
+                        }`}>
+                          {action.badge.replace('Akun ', '')}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-bold leading-tight block truncate w-full">
+                        {action.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -359,31 +743,538 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Jenis Kegiatan</label>
                   <select
                     value={type}
-                    onChange={(e) => setType(e.target.value as TransactionType)}
-                    className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-1 focus:ring-slate-500 outline-none"
+                    onChange={(e) => {
+                      const newType = e.target.value as TransactionType;
+                      setType(newType);
+                      updateAutoDescription(newType);
+                    }}
+                    className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-1 focus:ring-slate-500 outline-none font-medium"
                   >
-                    <option value="Penjualan">Penjualan (Stok / Barang Dagang)</option>
-                    <option value="Pembelian">Pembelian (Stok / Barang Dagang)</option>
-                    <option value="Biaya Operasional">Biaya Operasional (Beban Usaha)</option>
-                    <option value="Penerimaan">Penerimaan Modal / Kas Masuk</option>
-                    <option value="Pembayaran Hutang">Pembayaran Utang Usaha</option>
-                    <option value="Lainnya">Lainnya (Jurnal Kustom)</option>
+                    <optgroup label="Operasional & Gaji Toko">
+                      <option value="Gaji Karyawan">💼 Gaji &amp; Upah Karyawan (Beban 6001)</option>
+                      <option value="Listrik & Air">💡 Listrik, Air &amp; Gas (Beban 6003)</option>
+                      <option value="Sewa Toko">🏠 Sewa Tempat / Toko / Ruko (Beban 6002)</option>
+                      <option value="Internet & Pulsa">🌐 Internet, WiFi &amp; Pulsa (Beban 6004)</option>
+                      <option value="Perlengkapan Toko">🛍️ Perlengkapan &amp; ATK Toko (Beban 6005)</option>
+                      <option value="Servis & Perbaikan">🔧 Servis &amp; Perbaikan Toko (Beban 6007)</option>
+                      <option value="Biaya Operasional">📁 Biaya Operasional Lainnya (Beban 6008)</option>
+                    </optgroup>
+                    <optgroup label="Aset & Belanja Modal">
+                      <option value="Beli Inventaris">🪑 Inventaris Furniture / Aset Tetap (Akun 1005)</option>
+                    </optgroup>
+                    <optgroup label="Perdagangan Barang & Stok">
+                      <option value="Penjualan">🛒 Penjualan Barang Dagang (Pendapatan 4001)</option>
+                      <option value="Pembelian">📦 Kulakan Stok Barang Dagang (Persediaan 1003)</option>
+                    </optgroup>
+                    <optgroup label="Modal, Ekuitas & Utang">
+                      <option value="Setor Modal">💰 Setoran Modal Pemilik (Ekuitas 3001)</option>
+                      <option value="Tarik Prive">💵 Penarikan Prive Pribadi (Ekuitas 3002)</option>
+                      <option value="Pembayaran Hutang">💳 Pelunasan Utang Usaha (Liabilitas 2001)</option>
+                      <option value="Lainnya">⚙️ Lainnya / Jurnal Kustom Manual</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Keterangan / Uraian</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Keterangan / Uraian Transaksi</label>
                 <input
                   type="text"
                   required
-                  placeholder="Misal: Penjualan 10 Pcs Indomie Goreng, Pembayaran Gaji Karyawan Toko, dll"
+                  placeholder="Misal: Pembayaran Gaji Staf Kasir Juni 2026, Token Listrik Toko PLN, dll"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-1 focus:ring-slate-500 outline-none"
                 />
               </div>
+
+              {/* CONTEXTUAL HELPER PANELS ACCORDING TO USER'S EXPENSE/ASSET TYPE */}
+              
+              {/* 1. Panel Gaji Karyawan */}
+              {type === 'Gaji Karyawan' && (
+                <div className="bg-violet-50/80 border border-violet-200 rounded-2xl p-4 sm:p-5 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-violet-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-violet-600 text-white rounded-lg">
+                        <Briefcase className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-violet-900">Formulir Beban Gaji &amp; Upah Karyawan</h4>
+                        <p className="text-[10px] text-violet-600">Akun: 6001 - Beban Gaji &amp; Upah Karyawan (Laporan Laba Rugi)</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono bg-violet-200 text-violet-900 px-2 py-0.5 rounded-full">
+                      Beban Usaha SAK EMKM
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-violet-900 mb-1">Nama Staf / Posisi</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Siti Rahma (Kasir), Budi (Gudang)"
+                        value={salaryEmployeeName}
+                        onChange={(e) => {
+                          setSalaryEmployeeName(e.target.value);
+                          const staffText = e.target.value.trim() ? ` (${e.target.value.trim()})` : " Staf Toko";
+                          setDescription(`Pembayaran ${salaryType}${staffText} - Periode ${salaryPeriod}`);
+                        }}
+                        className="w-full text-xs bg-white border border-violet-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-violet-900 mb-1">Jenis Kompensasi</label>
+                      <select
+                        value={salaryType}
+                        onChange={(e) => {
+                          setSalaryType(e.target.value);
+                          const staffText = salaryEmployeeName.trim() ? ` (${salaryEmployeeName.trim()})` : " Staf Toko";
+                          setDescription(`Pembayaran ${e.target.value}${staffText} - Periode ${salaryPeriod}`);
+                        }}
+                        className="w-full text-xs bg-white border border-violet-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-violet-500"
+                      >
+                        <option value="Gaji Pokok Bulanan">Gaji Pokok Bulanan</option>
+                        <option value="Upah Harian / Borongan">Upah Harian / Borongan Lepas</option>
+                        <option value="Uang Lembur Staf">Uang Lembur / Jam Ekstra</option>
+                        <option value="Tunjangan Hari Raya (THR) / Bonus">Tunjangan Hari Raya (THR) / Bonus</option>
+                        <option value="Uang Makan & Transport Staf">Uang Makan &amp; Transport Staf</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-violet-900 mb-1">Periode Penggajian</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Juni 2026 atau Minggu ke-2"
+                        value={salaryPeriod}
+                        onChange={(e) => {
+                          setSalaryPeriod(e.target.value);
+                          const staffText = salaryEmployeeName.trim() ? ` (${salaryEmployeeName.trim()})` : " Staf Toko";
+                          setDescription(`Pembayaran ${salaryType}${staffText} - Periode ${e.target.value}`);
+                        }}
+                        className="w-full text-xs bg-white border border-violet-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-violet-900 mb-1">Sumber Pembayaran</label>
+                      <select
+                        value={salaryPaymentSource}
+                        onChange={(e) => {
+                          setSalaryPaymentSource(e.target.value);
+                          setCreditAccountSelect(e.target.value);
+                        }}
+                        className="w-full text-xs bg-white border border-violet-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-violet-500 font-medium"
+                      >
+                        <option value="1001">Kas Tunai Toko / Bank (Akun 1001)</option>
+                        <option value="2004">Ditangguhkan / Utang Gaji (Akun 2004)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 bg-violet-100/70 p-2.5 rounded-xl text-[11px] text-violet-900 leading-relaxed">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-violet-600" />
+                    <span>
+                      <strong>Jurnal Otomatis Berpasangan:</strong> Mendebit <strong>6001 - Beban Gaji &amp; Upah Karyawan</strong> dan Mengkredit <strong>{salaryPaymentSource === '1001' ? '1001 - Kas & Setara Kas' : '2004 - Utang Gaji & Beban'}</strong>. Nilai ini langsung terakumulasi dalam Laporan Laba Rugi untuk menghitung laba bersih riil.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Panel Listrik, Air & Gas (Utilitas) */}
+              {type === 'Listrik & Air' && (
+                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 sm:p-5 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-amber-600 text-white rounded-lg">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-amber-900">Formulir Beban Listrik, Air &amp; Gas (Utilitas Toko)</h4>
+                        <p className="text-[10px] text-amber-700">Akun: 6003 - Beban Listrik, Air &amp; Gas (Laporan Laba Rugi)</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                      Utilitas Operasional
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-900 mb-1">Jenis Layanan Utilitas</label>
+                      <select
+                        value={utilityCategory}
+                        onChange={(e) => {
+                          setUtilityCategory(e.target.value);
+                          const meterText = utilityMeterNumber.trim() ? ` (ID: ${utilityMeterNumber.trim()})` : "";
+                          setDescription(`Pembayaran ${e.target.value}${meterText} - Periode ${utilityPeriod}`);
+                        }}
+                        className="w-full text-xs bg-white border border-amber-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-amber-500"
+                      >
+                        <option value="Token Listrik PLN Toko (Prabayar)">Token Listrik PLN Toko (Prabayar)</option>
+                        <option value="Tagihan Listrik PLN Pascabayar">Tagihan Listrik PLN Pascabayar Toko</option>
+                        <option value="Tagihan Air Bersih PDAM">Tagihan Air Bersih PDAM Toko</option>
+                        <option value="Tabung Gas LPG Operasional">Tabung Gas LPG Operasional Toko</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-900 mb-1">No. Meteran / ID Pelanggan PLN (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: 54109827361"
+                        value={utilityMeterNumber}
+                        onChange={(e) => {
+                          setUtilityMeterNumber(e.target.value);
+                          const meterText = e.target.value.trim() ? ` (ID: ${e.target.value.trim()})` : "";
+                          setDescription(`Pembayaran ${utilityCategory}${meterText} - Periode ${utilityPeriod}`);
+                        }}
+                        className="w-full text-xs bg-white border border-amber-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-900 mb-1">Periode Pemakaian</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Juni 2026"
+                        value={utilityPeriod}
+                        onChange={(e) => {
+                          setUtilityPeriod(e.target.value);
+                          const meterText = utilityMeterNumber.trim() ? ` (ID: ${utilityMeterNumber.trim()})` : "";
+                          setDescription(`Pembayaran ${utilityCategory}${meterText} - Periode ${e.target.value}`);
+                        }}
+                        className="w-full text-xs bg-white border border-amber-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 bg-amber-100/70 p-2.5 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-700" />
+                    <span>
+                      <strong>Jurnal Otomatis Berpasangan:</strong> Mendebit <strong>6003 - Beban Listrik, Air &amp; Gas</strong> dan Mengkredit <strong>1001 - Kas &amp; Setara Kas</strong>.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Panel Sewa Toko / Ruko */}
+              {type === 'Sewa Toko' && (
+                <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-4 sm:p-5 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-sky-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-sky-600 text-white rounded-lg">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-sky-900">Formulir Beban Sewa Tempat / Toko / Ruko</h4>
+                        <p className="text-[10px] text-sky-700">Akun: 6002 - Beban Sewa Ruko/Tempat (Laporan Laba Rugi)</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono bg-sky-200 text-sky-900 px-2 py-0.5 rounded-full">
+                      Fasilitas Usaha
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-sky-900 mb-1">Durasi / Periode Sewa</label>
+                      <select
+                        value={rentalDuration}
+                        onChange={(e) => {
+                          setRentalDuration(e.target.value);
+                          const rukoText = rentalUnitName.trim() ? ` - ${rentalUnitName.trim()}` : "";
+                          const ownerText = rentalLandlord.trim() ? ` (Pemilik: ${rentalLandlord.trim()})` : "";
+                          setDescription(`Pembayaran Sewa Toko/Ruko (Periode ${e.target.value})${rukoText}${ownerText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-sky-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-sky-500 font-medium"
+                      >
+                        <option value="1 Bulan">1 Bulan (Sewa Bulanan)</option>
+                        <option value="3 Bulan">3 Bulan (Triwulan)</option>
+                        <option value="6 Bulan">6 Bulan (Semester)</option>
+                        <option value="1 Tahun">1 Tahun (Sewa Tahunan)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-sky-900 mb-1">Nama Toko / Lokasi Ruko</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Ruko Blok A No. 12, Kios Pasar"
+                        value={rentalUnitName}
+                        onChange={(e) => {
+                          setRentalUnitName(e.target.value);
+                          const rukoText = e.target.value.trim() ? ` - ${e.target.value.trim()}` : "";
+                          const ownerText = rentalLandlord.trim() ? ` (Pemilik: ${rentalLandlord.trim()})` : "";
+                          setDescription(`Pembayaran Sewa Toko/Ruko (Periode ${rentalDuration})${rukoText}${ownerText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-sky-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-sky-900 mb-1">Nama Pemilik Properti (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Bpk. H. Hendra"
+                        value={rentalLandlord}
+                        onChange={(e) => {
+                          setRentalLandlord(e.target.value);
+                          const rukoText = rentalUnitName.trim() ? ` - ${rentalUnitName.trim()}` : "";
+                          const ownerText = e.target.value.trim() ? ` (Pemilik: ${e.target.value.trim()})` : "";
+                          setDescription(`Pembayaran Sewa Toko/Ruko (Periode ${rentalDuration})${rukoText}${ownerText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-sky-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 bg-sky-100/70 p-2.5 rounded-xl text-[11px] text-sky-900 leading-relaxed">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-700" />
+                    <span>
+                      <strong>Jurnal Otomatis Berpasangan:</strong> Mendebit <strong>6002 - Beban Sewa Ruko/Tempat</strong> dan Mengkredit <strong>1001 - Kas &amp; Setara Kas</strong>.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Panel Inventaris & Furniture Toko (Aset Tetap 1005) */}
+              {type === 'Beli Inventaris' && (
+                <div className="bg-emerald-50/80 border border-emerald-300 rounded-2xl p-4 sm:p-5 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-emerald-700 text-white rounded-lg">
+                        <Boxes className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-emerald-950">Formulir Pengadaan Inventaris &amp; Furniture Toko</h4>
+                        <p className="text-[10px] text-emerald-800">Akun: 1005 - Aset Tetap - Peralatan &amp; Inventaris Furniture (Neraca)</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded-full">
+                      Belanja Modal / Aset Tetap
+                    </span>
+                  </div>
+
+                  {/* SAK EMKM Asset Educational Banner */}
+                  <div className="bg-emerald-100/80 border border-emerald-300/80 rounded-xl p-3 text-[11px] text-emerald-900 leading-relaxed space-y-1">
+                    <p className="font-bold flex items-center gap-1 text-emerald-950">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                      Standar Akuntansi Keuangan SAK EMKM:
+                    </p>
+                    <p>
+                      Pengeluaran inventaris toko (rak display gondola, etalase kaca, meja kasir, AC pendingin, kulkas showcase minuman) merupakan <strong>ASET TETAP (Neraca)</strong>, bukan biaya langsung pada hari pembelian. Kas berkurang namun nilai total aset usaha Anda tetap utuh karena bertransformasi menjadi harta inventaris produktif berwujud!
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-900 mb-1">Kategori Inventaris Furniture</label>
+                      <select
+                        value={inventoryCategory}
+                        onChange={(e) => {
+                          setInventoryCategory(e.target.value);
+                          const specText = inventorySpecs.trim() ? ` (${inventorySpecs.trim()})` : "";
+                          setDescription(`Pembelian Aset Inventaris Toko: ${inventoryQty} Unit ${e.target.value}${specText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-emerald-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-emerald-600 font-medium"
+                      >
+                        <option value="Rak Gondola Display Toko">Rak Gondola Display Toko (Besi)</option>
+                        <option value="Etalase Kaca Toko">Etalase Kaca Toko (Display Produk)</option>
+                        <option value="Meja Kasir & Kursi Ergonomis">Meja Kasir Toko &amp; Kursi Kerja</option>
+                        <option value="Komputer Kasir POS & Printer Struk">Komputer POS Kasir &amp; Printer Thermal</option>
+                        <option value="Kulkas Showcase Pendingin Minuman">Kulkas Showcase Minuman Toko</option>
+                        <option value="AC Split Pendingin Toko">AC Split Pendingin Ruang Toko</option>
+                        <option value="Timbangan Digital & Scanner Barcode">Timbangan Digital &amp; Scanner Barcode</option>
+                        <option value="Lemari / Cash Drawer Uang">Lemari Arsip &amp; Cash Drawer Kasir</option>
+                        <option value="Peralatan Toko Lainnya">Inventaris Toko Lainnya</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-900 mb-1">Merk / Spesifikasi / Ukuran</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Besi 4 Susun 120cm, Kaca 8mm 2M"
+                        value={inventorySpecs}
+                        onChange={(e) => {
+                          setInventorySpecs(e.target.value);
+                          const specText = e.target.value.trim() ? ` (${e.target.value.trim()})` : "";
+                          setDescription(`Pembelian Aset Inventaris Toko: ${inventoryQty} Unit ${inventoryCategory}${specText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-emerald-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-emerald-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-900 mb-1">Jumlah Unit Barang</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={inventoryQty}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          setInventoryQty(val);
+                          const specText = inventorySpecs.trim() ? ` (${inventorySpecs.trim()})` : "";
+                          setDescription(`Pembelian Aset Inventaris Toko: ${val} Unit ${inventoryCategory}${specText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-emerald-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-emerald-600 font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-900 mb-1">Masa Manfaat Ekonomis</label>
+                      <select
+                        value={inventoryUsefulLife}
+                        onChange={(e) => setInventoryUsefulLife(e.target.value)}
+                        className="w-full text-xs bg-white border border-emerald-300 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-emerald-600"
+                      >
+                        <option value="2 Tahun (Perangkat Kasir/Elektronik)">2 Tahun (Perangkat Kasir / POS)</option>
+                        <option value="4 Tahun (Fiskal Gol. 1 - Rak/Etalase/Meja)">4 Tahun (Fiskal Gol. 1 - Rak / Etalase)</option>
+                        <option value="8 Tahun (Fiskal Gol. 2 - Showcase/AC Berat)">8 Tahun (Fiskal Gol. 2 - AC / Showcase)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 bg-emerald-100/70 p-2.5 rounded-xl text-[11px] text-emerald-900 leading-relaxed">
+                    <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-700" />
+                    <span>
+                      <strong>Jurnal Otomatis Berpasangan:</strong> Mendebit <strong>1005 - Aset Tetap - Peralatan &amp; Inventaris Furniture</strong> dan Mengkredit <strong>1001 - Kas &amp; Setara Kas</strong>. Posisi Neraca toko Anda akan langsung menampilkan pertambahan nilai aset inventaris ini!
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Panel Internet & Pulsa */}
+              {type === 'Internet & Pulsa' && (
+                <div className="bg-cyan-50/80 border border-cyan-200 rounded-2xl p-4 space-y-3 animate-fade-in">
+                  <div className="flex items-center gap-2 text-cyan-900 font-bold text-xs">
+                    <Wifi className="w-4 h-4 text-cyan-600" />
+                    <span>Formulir Beban Internet, WiFi &amp; Komunikasi Toko (Akun 6004)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-cyan-900 mb-1">Provider Internet / Pulsa</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: IndiHome Toko, Biznet, Telkomsel Orbit"
+                        value={internetProvider}
+                        onChange={(e) => {
+                          setInternetProvider(e.target.value);
+                          const accText = internetAccNumber.trim() ? ` (No: ${internetAccNumber.trim()})` : "";
+                          setDescription(`Pembayaran Tagihan Internet & Pulsa Toko ${e.target.value}${accText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-cyan-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-cyan-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-cyan-900 mb-1">No. Pelanggan / ID Tagihan (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: 122894750912"
+                        value={internetAccNumber}
+                        onChange={(e) => {
+                          setInternetAccNumber(e.target.value);
+                          const accText = e.target.value.trim() ? ` (No: ${e.target.value.trim()})` : "";
+                          setDescription(`Pembayaran Tagihan Internet & Pulsa Toko ${internetProvider}${accText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-cyan-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-cyan-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Panel Perlengkapan & ATK Toko */}
+              {type === 'Perlengkapan Toko' && (
+                <div className="bg-teal-50/80 border border-teal-200 rounded-2xl p-4 space-y-3 animate-fade-in">
+                  <div className="flex items-center gap-2 text-teal-900 font-bold text-xs">
+                    <ShoppingBag className="w-4 h-4 text-teal-600" />
+                    <span>Formulir Beban Perlengkapan &amp; ATK Toko (Akun 6005)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-teal-900 mb-1">Jenis Perlengkapan</label>
+                      <select
+                        value={supplyType}
+                        onChange={(e) => {
+                          setSupplyType(e.target.value);
+                          const notesText = supplyNotes.trim() ? ` - ${supplyNotes.trim()}` : "";
+                          setDescription(`Pembelian Perlengkapan Toko: ${e.target.value}${notesText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-teal-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-teal-500"
+                      >
+                        <option value="Kantong Plastik & Kresek Belanja">Kantong Plastik &amp; Kresek Belanja</option>
+                        <option value="Kertas Struk Kasir Thermal Roll">Kertas Struk Kasir Thermal Roll</option>
+                        <option value="Lakban, Solasi & Karet Toko">Lakban, Solasi &amp; Karet Toko</option>
+                        <option value="Buku Nota Kontan & Alat Tulis Kasir">Buku Nota Kontan &amp; Alat Tulis Kasir</option>
+                        <option value="Plastik Wrap & Bubble Wrap Packing">Plastik Wrap &amp; Bubble Wrap Packing</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-teal-900 mb-1">Catatan Tambahan (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: 10 Pak ukuran 24 & 30"
+                        value={supplyNotes}
+                        onChange={(e) => {
+                          setSupplyNotes(e.target.value);
+                          const notesText = e.target.value.trim() ? ` - ${e.target.value.trim()}` : "";
+                          setDescription(`Pembelian Perlengkapan Toko: ${supplyType}${notesText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-teal-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-teal-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 7. Panel Servis & Perbaikan Toko */}
+              {type === 'Servis & Perbaikan' && (
+                <div className="bg-orange-50/80 border border-orange-200 rounded-2xl p-4 space-y-3 animate-fade-in">
+                  <div className="flex items-center gap-2 text-orange-900 font-bold text-xs">
+                    <Wrench className="w-4 h-4 text-orange-600" />
+                    <span>Formulir Beban Pemeliharaan &amp; Perbaikan Toko (Akun 6007)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-orange-900 mb-1">Jenis Pemeliharaan</label>
+                      <select
+                        value={repairType}
+                        onChange={(e) => {
+                          setRepairType(e.target.value);
+                          const vendorText = repairVendor.trim() ? ` (Teknisi: ${repairVendor.trim()})` : "";
+                          setDescription(`Biaya Pemeliharaan Toko: ${e.target.value}${vendorText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-orange-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-orange-500"
+                      >
+                        <option value="Servis AC Toko & Cuci Filter">Servis AC Toko &amp; Cuci Filter</option>
+                        <option value="Perbaikan Lampu & Kelistrikan Toko">Perbaikan Lampu &amp; Kelistrikan Toko</option>
+                        <option value="Perbaikan Pintu & Rolling Door Toko">Perbaikan Pintu &amp; Rolling Door Toko</option>
+                        <option value="Pengecatan & Renovasi Kecil Toko">Pengecatan &amp; Renovasi Kecil Toko</option>
+                        <option value="Servis Komputer Kasir / Printer">Servis Komputer Kasir / Printer</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-orange-900 mb-1">Nama Teknisi / Bengkel (Opsional)</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Teknisi Mandiri AC (Pak Joko)"
+                        value={repairVendor}
+                        onChange={(e) => {
+                          setRepairVendor(e.target.value);
+                          const vendorText = e.target.value.trim() ? ` (Teknisi: ${e.target.value.trim()})` : "";
+                          setDescription(`Biaya Pemeliharaan Toko: ${repairType}${vendorText}`);
+                        }}
+                        className="w-full text-xs bg-white border border-orange-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Stock Selector Details if relevant */}
               {(type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan') && (
@@ -550,7 +1441,23 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
                 {/* Total amount */}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">
-                    {type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan' ? 'Total Uang Terhitung (Otomatis)' : 'Jumlah Dana / Nilai Transaksi'}
+                    {type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan'
+                      ? 'Total Uang Terhitung (Otomatis)'
+                      : type === 'Gaji Karyawan'
+                      ? 'Total Gaji & Upah Staf yang Dibayarkan (IDR)'
+                      : type === 'Listrik & Air'
+                      ? 'Nominal Tagihan / Token Listrik (IDR)'
+                      : type === 'Sewa Toko'
+                      ? 'Nilai Pembayaran Sewa Tempat/Ruko (IDR)'
+                      : type === 'Beli Inventaris'
+                      ? 'Total Pembelian Inventaris Furniture (IDR)'
+                      : type === 'Internet & Pulsa'
+                      ? 'Nominal Tagihan Internet / Pulsa (IDR)'
+                      : type === 'Perlengkapan Toko'
+                      ? 'Total Biaya Perlengkapan Toko (IDR)'
+                      : type === 'Servis & Perbaikan'
+                      ? 'Total Biaya Servis / Pemeliharaan (IDR)'
+                      : 'Jumlah Dana / Nilai Transaksi (IDR)'}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">Rp</span>
@@ -671,7 +1578,309 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
             )}
           </div>
         </div>
-      )}
+
+        {/* RIWAYAT LENGKAP TRANSAKSI BISNIS & OPERASIONAL */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5" id="history-transactions-card">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-indigo-600" />
+                Riwayat Transaksi &amp; Beban Operasional
+              </h3>
+              <p className="text-xs text-slate-400">
+                Pencatatan real-time gaji staf, utilitas listrik/air, sewa toko, aset inventaris, dan penjualan
+              </p>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari transaksi, staf, no meter..."
+                value={historySearchQuery}
+                onChange={(e) => setHistorySearchQuery(e.target.value)}
+                className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-slate-500"
+              />
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-violet-50/70 border border-violet-100 p-3 rounded-xl">
+              <span className="text-[10px] text-violet-700 font-bold uppercase tracking-wider block">Beban Gaji Karyawan</span>
+              <span className="text-sm font-bold text-violet-950 font-mono">
+                {formatIDR(transactions.filter(t => t.type === 'Gaji Karyawan').reduce((s, t) => s + t.amount, 0))}
+              </span>
+            </div>
+            <div className="bg-amber-50/70 border border-amber-100 p-3 rounded-xl">
+              <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider block">Listrik, Air &amp; Sewa</span>
+              <span className="text-sm font-bold text-amber-950 font-mono">
+                {formatIDR(transactions.filter(t => t.type === 'Listrik & Air' || t.type === 'Sewa Toko').reduce((s, t) => s + t.amount, 0))}
+              </span>
+            </div>
+            <div className="bg-emerald-50/70 border border-emerald-200 p-3 rounded-xl">
+              <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block">Inventaris &amp; Furniture (Aset)</span>
+              <span className="text-sm font-bold text-emerald-950 font-mono">
+                {formatIDR(transactions.filter(t => t.type === 'Beli Inventaris').reduce((s, t) => s + t.amount, 0))}
+              </span>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Transaksi Tercatat</span>
+              <span className="text-sm font-bold text-slate-800 font-mono">
+                {transactions.length} Transaksi
+              </span>
+            </div>
+          </div>
+
+          {/* Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+              <Filter className="w-3 h-3" /> Filter:
+            </span>
+            {[
+              { id: 'Semua', label: 'Semua Transaksi' },
+              { id: 'Gaji & Upah', label: '💼 Gaji Karyawan' },
+              { id: 'Listrik & Air', label: '💡 Listrik & Air' },
+              { id: 'Sewa Toko', label: '🏠 Sewa Toko' },
+              { id: 'Inventaris Furniture', label: '🪑 Inventaris Furniture' },
+              { id: 'Internet & Pulsa', label: '🌐 Internet & Pulsa' },
+              { id: 'Perlengkapan & Servis', label: '🛍️ Perlengkapan & Servis' },
+              { id: 'Penjualan', label: '🛒 Penjualan' },
+              { id: 'Kulakan Stok', label: '📦 Kulakan Stok' }
+            ].map(f => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setHistoryCategoryFilter(f.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  historyCategoryFilter === f.id
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Table */}
+          {transactions.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+              <Coins className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p className="text-xs font-medium">Belum ada transaksi yang dicatat.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Gunakan formulir di atas atau pilih preset cepat untuk mulai pembukuan.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50/90 text-slate-500 font-bold border-b border-slate-100 uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-3.5">Tanggal / Faktur</th>
+                    <th className="py-3 px-3.5">Kategori Transaksi</th>
+                    <th className="py-3 px-3.5">Uraian &amp; Detail</th>
+                    <th className="py-3 px-3.5 text-right">Nilai (IDR)</th>
+                    <th className="py-3 px-3.5">Posting Akun (Debit / Kredit)</th>
+                    <th className="py-3 px-3.5 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {transactions
+                    .filter(tx => {
+                      if (historyCategoryFilter === 'Gaji & Upah' && tx.type !== 'Gaji Karyawan') return false;
+                      if (historyCategoryFilter === 'Listrik & Air' && tx.type !== 'Listrik & Air') return false;
+                      if (historyCategoryFilter === 'Sewa Toko' && tx.type !== 'Sewa Toko') return false;
+                      if (historyCategoryFilter === 'Inventaris Furniture' && tx.type !== 'Beli Inventaris') return false;
+                      if (historyCategoryFilter === 'Internet & Pulsa' && tx.type !== 'Internet & Pulsa') return false;
+                      if (historyCategoryFilter === 'Perlengkapan & Servis' && tx.type !== 'Perlengkapan Toko' && tx.type !== 'Servis & Perbaikan') return false;
+                      if (historyCategoryFilter === 'Penjualan' && tx.type !== 'Penjualan' && tx.type !== 'Penjualan Stok') return false;
+                      if (historyCategoryFilter === 'Kulakan Stok' && tx.type !== 'Pembelian' && tx.type !== 'Pembelian Stok') return false;
+
+                      if (historySearchQuery.trim()) {
+                        const q = historySearchQuery.toLowerCase();
+                        const matchDesc = tx.description.toLowerCase().includes(q);
+                        const matchInv = (tx.invoiceNumber || '').toLowerCase().includes(q);
+                        const matchEmployee = (tx.employeeName || '').toLowerCase().includes(q);
+                        const matchAsset = (tx.assetType || '').toLowerCase().includes(q);
+                        const matchUtil = (tx.utilityType || '').toLowerCase().includes(q);
+                        return matchDesc || matchInv || matchEmployee || matchAsset || matchUtil;
+                      }
+                      return true;
+                    })
+                    .map((tx) => {
+                      const debitAccInfo = CHART_OF_ACCOUNTS.find(a => a.id === tx.debitAccount);
+                      const creditAccInfo = CHART_OF_ACCOUNTS.find(a => a.id === tx.creditAccount);
+
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/70 transition">
+                          {/* Tanggal & Faktur */}
+                          <td className="py-3 px-3.5 whitespace-nowrap">
+                            <span className="font-mono font-medium text-slate-800 block">{tx.date}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{tx.invoiceNumber || '-'}</span>
+                          </td>
+
+                          {/* Kategori Badge */}
+                          <td className="py-3 px-3.5 whitespace-nowrap">
+                            {tx.type === 'Gaji Karyawan' && (
+                              <span className="inline-flex items-center gap-1 bg-violet-100 text-violet-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-violet-200">
+                                <Briefcase className="w-3 h-3 text-violet-600" />
+                                Gaji Karyawan
+                              </span>
+                            )}
+                            {tx.type === 'Listrik & Air' && (
+                              <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                                <Zap className="w-3 h-3 text-amber-600" />
+                                Listrik &amp; Utilitas
+                              </span>
+                            )}
+                            {tx.type === 'Sewa Toko' && (
+                              <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-sky-200">
+                                <Building2 className="w-3 h-3 text-sky-600" />
+                                Sewa Toko/Ruko
+                              </span>
+                            )}
+                            {tx.type === 'Beli Inventaris' && (
+                              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                                <Boxes className="w-3 h-3 text-emerald-700" />
+                                Inventaris (Aset Tetap)
+                              </span>
+                            )}
+                            {tx.type === 'Internet & Pulsa' && (
+                              <span className="inline-flex items-center gap-1 bg-cyan-100 text-cyan-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-cyan-200">
+                                <Wifi className="w-3 h-3 text-cyan-600" />
+                                Internet &amp; Pulsa
+                              </span>
+                            )}
+                            {tx.type === 'Perlengkapan Toko' && (
+                              <span className="inline-flex items-center gap-1 bg-teal-100 text-teal-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-teal-200">
+                                <ShoppingBag className="w-3 h-3 text-teal-600" />
+                                Perlengkapan Toko
+                              </span>
+                            )}
+                            {tx.type === 'Servis & Perbaikan' && (
+                              <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                                <Wrench className="w-3 h-3 text-orange-600" />
+                                Servis Toko
+                              </span>
+                            )}
+                            {(tx.type === 'Penjualan' || tx.type === 'Penjualan Stok') && (
+                              <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200">
+                                <ShoppingCart className="w-3 h-3 text-green-600" />
+                                Penjualan
+                              </span>
+                            )}
+                            {(tx.type === 'Pembelian' || tx.type === 'Pembelian Stok') && (
+                              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                                <Truck className="w-3 h-3 text-blue-600" />
+                                Kulakan Stok
+                              </span>
+                            )}
+                            {tx.type === 'Setor Modal' && (
+                              <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-200">
+                                <Coins className="w-3 h-3 text-purple-600" />
+                                Modal
+                              </span>
+                            )}
+                            {tx.type === 'Tarik Prive' && (
+                              <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-200">
+                                <ArrowRightLeft className="w-3 h-3 text-rose-600" />
+                                Prive
+                              </span>
+                            )}
+                            {tx.type === 'Pembayaran Hutang' && (
+                              <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                                <CheckCircle className="w-3 h-3 text-indigo-600" />
+                                Bayar Utang
+                              </span>
+                            )}
+                            {tx.type === 'Biaya Operasional' && (
+                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200">
+                                <FileText className="w-3 h-3 text-slate-600" />
+                                Beban Usaha
+                              </span>
+                            )}
+                            {tx.type === 'Lainnya' && (
+                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200">
+                                <Tag className="w-3 h-3 text-slate-500" />
+                                Kustom
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Uraian */}
+                          <td className="py-3 px-3.5">
+                            <span className="font-semibold text-slate-800 block text-xs">{tx.description}</span>
+                            <div className="flex flex-wrap gap-1.5 mt-0.5">
+                              {tx.employeeName && (
+                                <span className="text-[10px] text-violet-700 bg-violet-50 px-1.5 py-0.2 rounded border border-violet-100 font-medium">
+                                  Staf: {tx.employeeName}
+                                </span>
+                              )}
+                              {tx.utilityType && (
+                                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-100 font-medium">
+                                  Utilitas: {tx.utilityType}
+                                </span>
+                              )}
+                              {tx.rentalPeriod && (
+                                <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-100 font-medium">
+                                  Sewa: {tx.rentalPeriod}
+                                </span>
+                              )}
+                              {tx.assetType && (
+                                <span className="text-[10px] text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 font-medium">
+                                  Aset: {tx.assetType}
+                                </span>
+                              )}
+                              {tx.ppnEnabled && (
+                                <span className="text-[10px] text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-100 font-mono">
+                                  PPN: {formatIDR(tx.ppnAmount || 0)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Nilai */}
+                          <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
+                            {formatIDR(tx.amount)}
+                          </td>
+
+                          {/* Posting Akun */}
+                          <td className="py-3 px-3.5 text-[11px] whitespace-nowrap">
+                            <div className="text-sky-700 font-medium">
+                              <span className="font-bold text-[10px] bg-sky-50 px-1 rounded mr-1">D</span>
+                              {tx.debitAccount} - {tx.customDebitAccountName || debitAccInfo?.name || 'Debit'}
+                            </div>
+                            <div className="text-emerald-700 font-medium">
+                              <span className="font-bold text-[10px] bg-emerald-50 px-1 rounded mr-1">K</span>
+                              {tx.creditAccount} - {tx.customCreditAccountName || creditAccInfo?.name || 'Kredit'}
+                            </div>
+                          </td>
+
+                          {/* Aksi */}
+                          <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Hapus transaksi "${tx.description}"? Jurnal otomatis akan dibatalkan.`)) {
+                                  onDeleteTransaction(tx.id);
+                                }
+                              }}
+                              title="Hapus Transaksi"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
       {subTab === 'jurnal' && (
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4 printable-area" id="jurnal-view">

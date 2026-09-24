@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { 
   Coins, 
   BookOpen, 
@@ -26,15 +26,22 @@ import {
   AlertCircle
 } from "lucide-react";
 import { UserAccount } from "../types";
-import { authenticateUser, registerNewUser, DEFAULT_DEMO_USER } from "../utils/authService";
+import { authenticateUser, registerNewUser, loginAsDemo, DEFAULT_DEMO_USER } from "../utils/authService";
 
 interface LandingPageProps {
-  onLoginSuccess: (user: UserAccount) => void;
+  onLoginSuccess: (user: UserAccount, isNewRegistration?: boolean) => void;
+  initialAuthMode?: "login" | "register" | "demo";
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, initialAuthMode = "login" }) => {
+  const [authMode, setAuthMode] = useState<"login" | "register" | "demo">(initialAuthMode);
   const authSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialAuthMode) {
+      setAuthMode(initialAuthMode);
+    }
+  }, [initialAuthMode]);
 
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState<string>("admin@toko.id");
@@ -61,7 +68,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
   // FAQ state
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  const scrollToAuth = (mode: "login" | "register") => {
+  const scrollToAuth = (mode: "login" | "register" | "demo") => {
     setAuthMode(mode);
     authSectionRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -84,7 +91,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
       const res = authenticateUser(loginIdentifier, loginPassword);
       setLoginLoading(false);
       if (res.success && res.user) {
-        onLoginSuccess(res.user);
+        onLoginSuccess(res.user, false);
       } else {
         setLoginError(res.error || "Gagal masuk. Periksa kembali informasi akun Anda.");
       }
@@ -95,13 +102,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
     setLoginLoading(true);
     setLoginError(null);
     setTimeout(() => {
-      const res = authenticateUser("admin@toko.id", "password123");
+      const demoUser = loginAsDemo();
       setLoginLoading(false);
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      } else {
-        onLoginSuccess(DEFAULT_DEMO_USER);
-      }
+      onLoginSuccess(demoUser, false);
     }, 300);
   };
 
@@ -156,7 +159,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
       setRegLoading(false);
 
       if (res.success && res.user) {
-        onLoginSuccess(res.user);
+        // Automatically redirect new user to main accounting workspace with their store data
+        onLoginSuccess(res.user, true);
       } else {
         setRegError(res.error || "Gagal mendaftarkan akun. Silakan coba kembali.");
       }
@@ -213,34 +217,42 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => scrollToAuth("login")}
-              className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-950 transition rounded-lg hover:bg-slate-100 cursor-pointer"
+              className="px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 transition rounded-lg hover:bg-slate-100 cursor-pointer"
             >
-              Masuk
+              Masuk (User Lama)
             </button>
             <button
               onClick={() => scrollToAuth("register")}
-              className="px-4 py-2 text-xs font-bold text-white bg-slate-950 hover:bg-slate-800 rounded-xl transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-950 hover:bg-slate-800 rounded-xl transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
             >
-              <span>Daftar Toko Baru</span>
+              <span>Daftar User Baru</span>
               <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
+            </button>
+            <button
+              onClick={handleQuickDemoLogin}
+              className="hidden sm:flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition cursor-pointer"
+              title="Coba langsung tanpa registrasi untuk mengetahui fitur"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Akun Demo</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* 2. HERO & AUTH SPLIT SECTION */}
-      <section className="relative overflow-hidden pt-10 pb-16 lg:pt-16 lg:pb-24 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50">
+      <section className="relative overflow-hidden pt-8 pb-16 lg:pt-14 lg:pb-20 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50">
         {/* Subtle geometric grid background */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-40 pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
             
             {/* Left Hero Column: Value Proposition */}
-            <div className="lg:col-span-7 space-y-6 text-left">
+            <div className="lg:col-span-7 space-y-5 text-left">
               {/* Unboxed Typographic Tag */}
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 tracking-wide uppercase">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -256,32 +268,77 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                 </span>
               </h1>
 
-              <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl">
+              <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
                 Aplikasi akuntansi cerdas khusus pengusaha UMKM, pedagang ritel, dan bisnis lokal. Otomatisasi jurnal dua sisi (double-entry), hitung harga pokok penjualan (HPP), neraca real-time, hingga siap cetak laporan untuk pengajuan modal bank.
               </p>
 
+              {/* Quick Action Selector */}
+              <div className="bg-slate-100/90 border border-slate-200 p-4 rounded-2xl space-y-2.5 max-w-xl shadow-xs">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                  Pilih Akses untuk Membuka Aplikasi:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => scrollToAuth("login")}
+                    className="p-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-left transition shadow-2xs group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 group-hover:text-indigo-600">
+                      <User className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>User Lama</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Input data akun pribadi</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => scrollToAuth("register")}
+                    className="p-3 bg-slate-950 hover:bg-slate-800 text-white rounded-xl text-left transition shadow-2xs group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-white">
+                      <Store className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>User Baru</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 mt-0.5">Daftar toko &amp; buka AI</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleQuickDemoLogin}
+                    className="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl text-left transition shadow-2xs group cursor-pointer"
+                    title="Masuk mode demo interaktif"
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-900">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Akun Demo</span>
+                    </div>
+                    <p className="text-[10px] text-emerald-700 mt-0.5">Hanya untuk tinjauan</p>
+                  </button>
+                </div>
+              </div>
+
               {/* Key Benefits List */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs text-slate-700 font-medium">
-                <div className="flex items-center gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs text-slate-700 font-medium">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>18 Kode Akun Resmi SAK EMKM Standar</span>
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Kalkulasi Otomatis Pajak PPh Final 0,5%</span>
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Kontrol Stok &amp; HPP Metode Rata-Rata</span>
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Sinkronisasi Google Sheets &amp; Ekspor Excel</span>
+                  <span>Sinkronisasi Google Sheets &amp; Cetak PDF Resmi</span>
                 </div>
               </div>
 
               {/* Formula & Live Trust Highlight */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-4 max-w-lg">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex items-center justify-between gap-4 max-w-lg">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PRINSIP DASAR NERACA</p>
                   <p className="text-sm font-mono font-bold text-slate-900">ASET = LIABILITAS + EKUITAS</p>
@@ -294,46 +351,63 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Right Column: Unified Auth Card (Login / Register) */}
+            {/* Right Column: Unified Auth Card (Login / Register / Demo) */}
             <div className="lg:col-span-5" ref={authSectionRef}>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
                 
-                {/* Segmented Auth Tabs */}
-                <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50 p-1.5 gap-1.5">
+                {/* Segmented Auth Tabs (3 Tabs) */}
+                <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-100/70 p-1.5 gap-1">
                   <button
+                    type="button"
                     onClick={() => {
                       setAuthMode("login");
                       setLoginError(null);
                     }}
-                    className={`py-3 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${
+                    className={`py-2.5 px-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                       authMode === "login" 
                         ? "bg-white text-slate-950 shadow-xs border border-slate-200/80" 
                         : "text-slate-500 hover:text-slate-900"
                     }`}
                   >
-                    <User className="w-3.5 h-3.5" />
-                    <span>Masuk (User Lama)</span>
+                    <User className="w-3.5 h-3.5 shrink-0 text-indigo-600" />
+                    <span>Masuk (Lama)</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       setAuthMode("register");
                       setRegError(null);
                     }}
-                    className={`py-3 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${
+                    className={`py-2.5 px-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 text-center ${
                       authMode === "register" 
                         ? "bg-white text-slate-950 shadow-xs border border-slate-200/80" 
                         : "text-slate-500 hover:text-slate-900"
                     }`}
                   >
-                    <Store className="w-3.5 h-3.5" />
-                    <span>Daftar (User Baru)</span>
+                    <Store className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    <span>Daftar (Baru)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("demo");
+                    }}
+                    className={`py-2.5 px-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 text-center ${
+                      authMode === "demo" 
+                        ? "bg-emerald-600 text-white shadow-xs" 
+                        : "text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-300" />
+                    <span>Akun Demo</span>
                   </button>
                 </div>
 
                 {/* TAB 1: FORM LOGIN (USER LAMA) */}
                 {authMode === "login" && (
-                  <div className="p-6 sm:p-8 space-y-5">
+                  <div className="p-6 sm:p-7 space-y-4">
                     <div>
                       <h2 className="text-lg font-extrabold text-slate-950">Masuk ke Akun Toko</h2>
                       <p className="text-xs text-slate-500 mt-0.5">
@@ -348,13 +422,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                       </div>
                     )}
 
-                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                    <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Email atau Username
                         </label>
                         <div className="relative">
-                          <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                          <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
                           <input
                             type="text"
                             value={loginIdentifier}
@@ -374,7 +448,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                           <span className="text-[11px] text-slate-400">Default: password123</span>
                         </div>
                         <div className="relative">
-                          <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                          <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
                           <input
                             type={showLoginPassword ? "text" : "password"}
                             value={loginPassword}
@@ -386,14 +460,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                           <button
                             type="button"
                             onClick={() => setShowLoginPassword(!showLoginPassword)}
-                            className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            className="absolute right-3.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                           >
                             {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs pt-1">
+                      <div className="flex items-center justify-between text-xs pt-0.5">
                         <label className="flex items-center gap-2 cursor-pointer text-slate-600">
                           <input
                             type="checkbox"
@@ -414,7 +488,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                           <span>Memproses Masuk...</span>
                         ) : (
                           <>
-                            <span>Masuk ke Dashboard Toko</span>
+                            <span>Masuk ke Halaman Utama</span>
                             <ArrowRight className="w-4 h-4 text-emerald-400" />
                           </>
                         )}
@@ -423,10 +497,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
 
                     {/* Quick Demo Login Option */}
                     <div className="pt-2">
-                      <div className="relative flex items-center justify-center my-3">
+                      <div className="relative flex items-center justify-center my-2.5">
                         <div className="border-t border-slate-200 w-full" />
                         <span className="bg-white px-2 text-[10px] uppercase font-bold text-slate-400 absolute">
-                          Atau Coba Cepat
+                          Hanya Ingin Mengetahui Fitur?
                         </span>
                       </div>
 
@@ -436,11 +510,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                         className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2"
                       >
                         <Sparkles className="w-4 h-4 text-emerald-600" />
-                        <span>Masuk Langsung dengan Akun Demo (1-Klik)</span>
+                        <span>Buka dengan Akun Demo (1-Klik Tanpa Daftar)</span>
                       </button>
                     </div>
 
-                    <div className="text-center pt-1">
+                    <div className="text-center pt-0.5">
                       <p className="text-[11px] text-slate-500">
                         Belum punya akun toko?{" "}
                         <button
@@ -642,17 +716,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                         className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                       >
                         {regLoading ? (
-                          <span>Mendaftarkan Toko...</span>
+                          <span>Mendaftarkan &amp; Membuka Halaman Utama...</span>
                         ) : (
                           <>
-                            <span>Daftarkan Toko Saya &amp; Mulai</span>
+                            <span>Daftarkan Toko &amp; Buka Halaman Utama AI</span>
                             <ArrowRight className="w-4 h-4" />
                           </>
                         )}
                       </button>
                     </form>
 
-                    <div className="text-center pt-2">
+                    <div className="text-center pt-2 space-y-1">
                       <p className="text-[11px] text-slate-500">
                         Sudah memiliki akun toko sebelumnya?{" "}
                         <button
@@ -661,6 +735,88 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
                           className="font-bold text-indigo-600 hover:underline cursor-pointer"
                         >
                           Masuk di sini
+                        </button>
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Hanya ingin mencoba dulu?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setAuthMode("demo")}
+                          className="font-bold text-emerald-700 hover:underline cursor-pointer"
+                        >
+                          Buka Mode Demo
+                        </button>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: AKUN DEMO (HANYA UNTUK MENGETAHUI SAJA) */}
+                {authMode === "demo" && (
+                  <div className="p-6 sm:p-7 space-y-4">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider mb-2">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        Hanya untuk Mengetahui &amp; Tinjauan
+                      </div>
+                      <h2 className="text-lg font-extrabold text-slate-950">Akses Akun Demo Interaktif</h2>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Fitur ini disediakan khusus bagi Anda yang ingin mengetahui dan menguji coba seluruh alur kerja pembukuan Akuntan AI sebelum mendaftar.
+                      </p>
+                    </div>
+
+                    {/* Preview box */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs">
+                      <p className="font-extrabold text-slate-700 text-[11px] uppercase tracking-wider">
+                        Contoh Data Toko yang Siap Ditinjau:
+                      </p>
+                      <div className="space-y-1.5 text-slate-600 text-xs">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span><strong>Profil Toko:</strong> Toko Sembako Berkah Mandiri (Surabaya)</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>Mutasi Kas, Gaji Karyawan, Listrik/Air, &amp; Inventaris Toko</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>Katalog Stok Barang Dagang dengan Kalkulasi HPP Rata-Rata</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>Laporan Resmi SAK EMKM: Laba Rugi, Posisi Keuangan, &amp; CALK</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleQuickDemoLogin}
+                      disabled={loginLoading}
+                      className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>{loginLoading ? "Menyiapkan Data Demo..." : "Buka Halaman Utama via Akun Demo"}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-[11px] text-amber-900 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        Dalam mode demo, Anda bebas mencoba seluruh fitur untuk mengetahui cara kerjanya. Kapan pun Anda siap mengelola toko sendiri, Anda dapat mendaftarkan akun baru.
+                      </span>
+                    </div>
+
+                    <div className="text-center pt-0.5">
+                      <p className="text-[11px] text-slate-500">
+                        Siap mencatat toko Anda sendiri?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setAuthMode("register")}
+                          className="font-bold text-emerald-700 hover:underline cursor-pointer"
+                        >
+                          Daftar Akun Baru
                         </button>
                       </p>
                     </div>

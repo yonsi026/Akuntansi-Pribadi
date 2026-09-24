@@ -5,7 +5,7 @@ const SESSION_STORAGE_KEY = "akuntan_ai_current_user_v1";
 
 export const DEFAULT_DEMO_USER: UserAccount = {
   id: "usr_demo_01",
-  name: "Budi Santoso",
+  name: "Budi Santoso (Demo)",
   email: "admin@toko.id",
   username: "admin",
   password: "password123",
@@ -16,8 +16,18 @@ export const DEFAULT_DEMO_USER: UserAccount = {
   storeNpwp: "84.123.456.7-604.000",
   role: "owner",
   createdAt: "2026-01-15T08:00:00.000Z",
-  lastLoginAt: new Date().toISOString()
+  lastLoginAt: new Date().toISOString(),
+  isDemo: true
 };
+
+export function loginAsDemo(): UserAccount {
+  const demoUser: UserAccount = {
+    ...DEFAULT_DEMO_USER,
+    lastLoginAt: new Date().toISOString()
+  };
+  setCurrentUser(demoUser);
+  return demoUser;
+}
 
 export function getAllUsers(): UserAccount[] {
   try {

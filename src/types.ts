@@ -18,15 +18,22 @@ export interface Account {
 export type TransactionType =
   | 'Penjualan'          // Penjualan Stok / Barang Dagang
   | 'Pembelian'          // Pembelian Stok / Barang Dagang
-  | 'Biaya Operasional'  // Rent, salary, electricity expense, etc.
+  | 'Biaya Operasional'  // Beban Usaha umum
+  | 'Gaji Karyawan'      // Gaji & Upah Staf/Karyawan
+  | 'Listrik & Air'      // Listrik PLN, Air PDAM, Gas Usaha
+  | 'Sewa Toko'          // Sewa Ruko / Tempat Usaha
+  | 'Beli Inventaris'    // Aset Tetap: Furniture, Rak, Etalase, AC, Mesin Kasir
+  | 'Internet & Pulsa'   // Wifi, Paket Data, Telepon Toko
+  | 'Perlengkapan Toko'  // Kantong belanja, kresek, nota, thermal roll, lakban
+  | 'Servis & Perbaikan' // Servis AC, perbaikan etalase, pemeliharaan toko
   | 'Penerimaan'         // Capital setoran or miscellaneous income
-  | 'Pembayaran Hutang' // Paying off A/P liability
+  | 'Pembayaran Hutang'  // Paying off A/P liability
   | 'Lainnya'            // Custom debits/credits transaction
   | 'Setor Modal'        // Owner investments cash
   | 'Tarik Prive'        // Owner withdraws cash for personal use
-  | 'Pembelian Stok'   // Backward compatibility support
-  | 'Penjualan Stok'   // Backward compatibility support
-  | 'Pengeluaran';     // Backward compatibility support
+  | 'Pembelian Stok'     // Backward compatibility support
+  | 'Penjualan Stok'     // Backward compatibility support
+  | 'Pengeluaran';       // Backward compatibility support
 
 export interface Transaction {
   id: string;
@@ -37,6 +44,13 @@ export interface Transaction {
   
   // Bukti transaksi / Nomor faktur (pilihan)
   invoiceNumber?: string;
+
+  // Metadata detail operasional & aset (opsional)
+  operationalCategory?: string; // 'Gaji' | 'Listrik' | 'Sewa' | 'Inventaris' | 'Internet' | 'Perlengkapan' | 'Servis'
+  employeeName?: string;
+  utilityType?: string;
+  assetType?: string;
+  rentalPeriod?: string;
 
   // Stock details (optional, only for stock transactions)
   stockItemId?: string;
@@ -147,5 +161,6 @@ export interface UserAccount {
   role: 'owner' | 'accountant' | 'staff';
   createdAt: string;
   lastLoginAt?: string;
+  isDemo?: boolean; // Flag if user is accessing in preview/demo mode
 }
 

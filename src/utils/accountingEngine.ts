@@ -54,7 +54,18 @@ export function generateJournal(transactions: Transaction[]): JournalEntry[] {
 
     // Apply PPN adjustments logically
     const isSale = tx.type === "Penjualan" || tx.type === "Penjualan Stok" || tx.type === "Penerimaan";
-    const isPurchaseExpense = tx.type === "Pembelian" || tx.type === "Pembelian Stok" || tx.type === "Biaya Operasional" || tx.type === "Pengeluaran";
+    const isPurchaseExpense = 
+      tx.type === "Pembelian" || 
+      tx.type === "Pembelian Stok" || 
+      tx.type === "Biaya Operasional" || 
+      tx.type === "Pengeluaran" ||
+      tx.type === "Gaji Karyawan" ||
+      tx.type === "Listrik & Air" ||
+      tx.type === "Sewa Toko" ||
+      tx.type === "Beli Inventaris" ||
+      tx.type === "Internet & Pulsa" ||
+      tx.type === "Perlengkapan Toko" ||
+      tx.type === "Servis & Perbaikan";
 
     if (tx.ppnEnabled) {
       if (isSale) {

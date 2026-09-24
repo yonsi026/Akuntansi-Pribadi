@@ -12,7 +12,10 @@ import {
   BookText,
   LogOut,
   Globe,
-  User as UserIcon
+  User as UserIcon,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight
 } from "lucide-react";
 import { Transaction, StockItem, FinancialStats, StoreConfig, UserAccount } from "./types";
 import { 
@@ -38,6 +41,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [landingInitialMode, setLandingInitialMode] = useState<"login" | "register" | "demo">("login");
+  const [welcomeBanner, setWelcomeBanner] = useState<string | null>(null);
 
   // Local storage state keys
   const LOCAL_STORAGE_TX_KEY = "akuntan_ai_transactions_v1";
@@ -55,6 +60,9 @@ export default function App() {
     const activeSession = getCurrentUser();
     if (activeSession) {
       setCurrentUser(activeSession);
+      setShowLandingPage(false);
+    } else {
+      setShowLandingPage(true);
     }
 
     const loadedTx = localStorage.getItem(LOCAL_STORAGE_TX_KEY);
@@ -84,12 +92,18 @@ export default function App() {
     }
   }, []);
 
-  const handleLoginSuccess = (user: UserAccount) => {
+  const handleLoginSuccess = (user: UserAccount, isNewRegistration?: boolean) => {
     setCurrentUser(user);
     setShowLandingPage(false);
 
-    // If new user registered with customized store info, synchronize it
-    if (user.storeName && user.storeName !== storeConfig.storeName) {
+    if (user.isDemo) {
+      // Demo mode: ensure sample data is populated so the user can test everything
+      if (transactions.length === 0) {
+        handleLoadCustomDemoData(storeConfig);
+      }
+      setWelcomeBanner("Mode Akun Demo Aktif: Anda dapat menjelajahi seluruh fitur, riwayat transaksi, stok barang, dan laporan keuangan SAK EMKM secara leluasa.");
+    } else if (isNewRegistration) {
+      // Brand new user registration: Update store configuration with newly registered data and start fresh
       const updatedConfig: StoreConfig = {
         ...storeConfig,
         storeName: user.storeName,
@@ -99,13 +113,32 @@ export default function App() {
         storeNpwp: user.storeNpwp || storeConfig.storeNpwp
       };
       handleSaveStoreConfig(updatedConfig);
+      saveState([], []);
+      setActiveTab("dashboard");
+      setWelcomeBanner(`Selamat datang, ${user.name}! Toko "${user.storeName}" (${user.storeCity}) berhasil didaftarkan. Halaman utama Akuntansi AI siap digunakan untuk pembukuan riil Anda.`);
+    } else {
+      // Existing user login
+      if (user.storeName && user.storeName !== storeConfig.storeName) {
+        const updatedConfig: StoreConfig = {
+          ...storeConfig,
+          storeName: user.storeName,
+          storeType: user.storeType || storeConfig.storeType,
+          storeCity: user.storeCity || storeConfig.storeCity,
+          storeAddress: user.storeAddress || storeConfig.storeAddress,
+          storeNpwp: user.storeNpwp || storeConfig.storeNpwp
+        };
+        handleSaveStoreConfig(updatedConfig);
+      }
+      setWelcomeBanner(`Selamat datang kembali, ${user.name}! Data pembukuan "${storeConfig.storeName}" siap dikelola.`);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (targetMode: "login" | "register" | "demo" = "login") => {
     logoutUser();
     setCurrentUser(null);
+    setLandingInitialMode(targetMode);
     setShowLandingPage(true);
+    setWelcomeBanner(null);
   };
 
   const handleSaveStoreConfig = (newConfig: StoreConfig) => {
@@ -350,15 +383,71 @@ export default function App() {
   const journalEntries = generateJournal(transactions);
   const stats = computeFinancialStats(transactions, journalEntries);
 
-  // If landing page is active, render LandingPage with Login & Register forms
-  if (showLandingPage) {
-    return <LandingPage onLoginSuccess={handleLoginSuccess} />;
+  // Strict Authentication Gate:
+  // User cannot touch or tamper with the main accounting workspace before logging in or entering demo mode
+  if (showLandingPage || !currentUser) {
+    return (
+      <LandingPage 
+        onLoginSuccess={handleLoginSuccess} 
+        initialAuthMode={landingInitialMode}
+      />
+    );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans" id="applet-container">
+      {/* 1. Sticky Demo Mode Notice Banner */}
+      {currentUser?.isDemo && (
+        <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-emerald-700 text-white px-4 md:px-12 py-2.5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs z-50">
+          <div className="flex items-center gap-2.5">
+            <span className="p-1.5 bg-black/20 rounded-lg shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-200" />
+            </span>
+            <div>
+              <p className="font-extrabold tracking-wide flex items-center gap-1.5">
+                <span>Mode Akun Demo — Hanya untuk Mengetahui &amp; Tinjauan Fitur SAK EMKM</span>
+              </p>
+              <p className="text-[11px] text-amber-100/90 leading-tight">
+                Anda sedang mencoba data simulasi toko <strong>{storeConfig.storeName}</strong>. Seluruh mutasi, stok, dan laporan bebas diuji coba.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleLogout("register")}
+              className="px-3.5 py-1.5 bg-white text-slate-950 hover:bg-amber-50 rounded-xl font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+            >
+              <span>✨ Daftar Toko Anda Sendiri</span>
+            </button>
+            <button
+              onClick={() => handleLogout("login")}
+              className="px-3 py-1.5 bg-black/25 hover:bg-black/35 text-white rounded-xl text-xs font-bold transition cursor-pointer border border-white/20"
+            >
+              Keluar Demo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Welcome notification banner */}
+      {welcomeBanner && (
+        <div className="bg-indigo-50/95 border-b border-indigo-100 px-4 md:px-12 py-2.5 text-xs text-indigo-950 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{welcomeBanner}</span>
+          </div>
+          <button 
+            onClick={() => setWelcomeBanner(null)}
+            className="text-indigo-400 hover:text-indigo-800 font-bold text-xs p-1 cursor-pointer"
+            title="Tutup pemberitahuan"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Header */}
-      <header className="bg-white border-b border-slate-100 py-4 px-6 md:px-12 sticky top-0 z-50 shadow-xs">
+      <header className="bg-white border-b border-slate-100 py-4 px-6 md:px-12 sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-slate-900 text-white p-2.5 rounded-xl flex items-center justify-center shadow-xs">
@@ -389,18 +478,28 @@ export default function App() {
                 {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
               </div>
               <div className="text-left">
-                <p className="font-bold text-slate-800 leading-tight truncate max-w-[130px]">
-                  {currentUser?.name || "Budi Santoso"}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-slate-800 leading-tight truncate max-w-[120px]">
+                    {currentUser?.name || "Budi Santoso"}
+                  </p>
+                  {currentUser?.isDemo && (
+                    <span className="text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded-md">
+                      Demo
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] text-slate-400 leading-tight capitalize">
-                  {currentUser?.role === "owner" ? "Pemilik Usaha" : "Akuntan Toko"}
+                  {currentUser?.isDemo ? "Hanya Tinjauan" : (currentUser?.role === "owner" ? "Pemilik Usaha" : "Akuntan Toko")}
                 </p>
               </div>
             </div>
 
             {/* Back to Landing Page button */}
             <button
-              onClick={() => setShowLandingPage(true)}
+              onClick={() => {
+                setLandingInitialMode(currentUser?.isDemo ? "demo" : "login");
+                setShowLandingPage(true);
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer"
               title="Lihat Landing Page &amp; Brosur Fitur"
             >
@@ -410,7 +509,7 @@ export default function App() {
 
             {/* Logout button */}
             <button
-              onClick={handleLogout}
+              onClick={() => handleLogout("login")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
               title="Keluar / Beralih Akun Toko"
             >
