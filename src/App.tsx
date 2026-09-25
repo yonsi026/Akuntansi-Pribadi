@@ -31,7 +31,7 @@ import { StockManager } from "./components/StockManager";
 import { FinancialStatements } from "./components/FinancialStatements";
 import { TaxCalculator } from "./components/TaxCalculator";
 import { AiAssistant } from "./components/AiAssistant";
-import { StoreSettings, DEFAULT_STORE_CONFIG } from "./components/StoreSettings";
+import { StoreSettings, DEFAULT_STORE_CONFIG, BUSINESS_TYPE_PRESETS } from "./components/StoreSettings";
 import { CloudSync } from "./components/CloudSync";
 import { AccountDocumentation } from "./components/AccountDocumentation";
 import { LandingPage } from "./components/LandingPage";
@@ -104,18 +104,33 @@ export default function App() {
       setWelcomeBanner("Mode Akun Demo Aktif: Anda dapat menjelajahi seluruh fitur, riwayat transaksi, stok barang, dan laporan keuangan SAK EMKM secara leluasa.");
     } else if (isNewRegistration) {
       // Brand new user registration: Update store configuration with newly registered data and start fresh
+      const preset = BUSINESS_TYPE_PRESETS[user.storeType];
       const updatedConfig: StoreConfig = {
         ...storeConfig,
         storeName: user.storeName,
         storeType: user.storeType || storeConfig.storeType,
         storeCity: user.storeCity || storeConfig.storeCity,
         storeAddress: user.storeAddress || storeConfig.storeAddress,
-        storeNpwp: user.storeNpwp || storeConfig.storeNpwp
+        storeNpwp: user.storeNpwp || storeConfig.storeNpwp,
+        demoProducts: preset ? preset.products : storeConfig.demoProducts
       };
       handleSaveStoreConfig(updatedConfig);
-      saveState([], []);
+      
+      // If the registered business type has preset products/materials/services, seed the initial catalog
+      const initialStocks: StockItem[] = preset ? preset.products.map((p, idx) => ({
+        id: `stk-${Date.now()}-${idx}`,
+        name: p.name,
+        sku: p.sku || `SKU-${idx}`,
+        unit: p.unit || "Pcs",
+        stock: user.storeType.includes("Konsultan") ? 0 : 25,
+        avgPurchasePrice: p.avgPurchasePrice,
+        sellPrice: p.sellPrice,
+        purchaseHistory: []
+      })) : [];
+
+      saveState([], initialStocks);
       setActiveTab("dashboard");
-      setWelcomeBanner(`Selamat datang, ${user.name}! Toko "${user.storeName}" (${user.storeCity}) berhasil didaftarkan. Halaman utama Akuntansi AI siap digunakan untuk pembukuan riil Anda.`);
+      setWelcomeBanner(`Selamat datang, ${user.name}! Usaha "${user.storeName}" (${user.storeType} — ${user.storeCity}) berhasil didaftarkan. Halaman utama Akuntansi AI siap digunakan untuk pembukuan riil Anda.`);
     } else {
       // Existing user login
       if (user.storeName && user.storeName !== storeConfig.storeName) {
@@ -247,6 +262,11 @@ export default function App() {
     saveState(nextTx, nextStock);
   };
 
+  const handleImportExcelData = (mergedTxs: Transaction[], mergedStocks?: StockItem[]) => {
+    const updatedStocks = mergedStocks && mergedStocks.length > 0 ? mergedStocks : stockItems;
+    saveState(mergedTxs, updatedStocks);
+  };
+
   const handleClearTransactions = () => {
     setTransactions([]);
     setStockItems([]);
@@ -299,16 +319,25 @@ export default function App() {
       }
     ];
 
-    // Add restock inputs
+    const isConsultant = storeType.includes("Konsultan") || storeType.includes("Desain");
+    const isContractor = storeType.includes("Kontraktor") || storeType.includes("Konstruksi") || storeType.includes("Supplier");
+
+    // Add restock / cost inputs
     demoStock.forEach((item, idx) => {
       const qtyPurchased = idx === 0 ? 50 : (idx === 1 ? 120 : 30);
       const buyPrice = item.avgPurchasePrice;
       const rawCost = qtyPurchased * buyPrice;
 
+      const buyDesc = isConsultant 
+        ? `Alokasi Biaya Produksi & Lisensi Software — ${item.name}`
+        : isContractor 
+          ? `Pembelian Material Konstruksi dari Pabrik/Distributor — ${item.name} (${qtyPurchased} ${item.unit})`
+          : `Kulakan / Restock ${item.name} sebanyak ${qtyPurchased} ${item.unit}`;
+
       demoTx.push({
         id: `demo-tx-buy-${idx}`,
         date: `${datePrefix}03`,
-        description: `Kulakan / Restock ${item.name} sebanyak ${qtyPurchased} ${item.unit}`,
+        description: buyDesc,
         amount: rawCost,
         type: 'Pembelian',
         stockItemId: item.id,
@@ -328,10 +357,16 @@ export default function App() {
       const salesTotal = qtySold * sellingPrice;
       const costOfSale = qtySold * item.avgPurchasePrice;
 
+      const sellDesc = isConsultant
+        ? `Penagihan Termin Jasa Konsultasi / Desain — ${item.name} (${qtySold} ${item.unit})`
+        : isContractor
+          ? `Pengiriman & Penjualan Material Proyek Lapangan — ${item.name} (${qtySold} ${item.unit})`
+          : `Penjualan ${storeType} — ${item.name} sebanyak ${qtySold} ${item.unit}`;
+
       demoTx.push({
         id: `demo-tx-sell-${idx}`,
         date: `${datePrefix}05`,
-        description: `Penjualan ${storeType} - ${item.name} sebanyak ${qtySold} ${item.unit}`,
+        description: sellDesc,
         amount: salesTotal,
         type: 'Penjualan',
         stockItemId: item.id,
@@ -345,7 +380,13 @@ export default function App() {
       });
     });
 
-    // Add common utility payments
+    // Add common utility & payroll payments
+    const salDesc = isConsultant
+      ? `Honor Drafter, Desainer & Tenaga Ahli Studio — ${storeName}`
+      : isContractor
+        ? `Upah Mandor, Tenaga Tukang & Staf Logistik Proyek — ${storeName}`
+        : `Gaji Bulanan Staf Operasional Toko — ${storeName}`;
+
     demoTx.push(
       {
         id: "demo-tx-util",
@@ -361,7 +402,7 @@ export default function App() {
       {
         id: "demo-tx-sal",
         date: `${datePrefix}10`,
-        description: `Gaji Bulanan Staf Operasional Toko — ${storeName}`,
+        description: salDesc,
         amount: 1200000,
         type: 'Biaya Operasional',
         ppnEnabled: false,
@@ -661,6 +702,7 @@ export default function App() {
               stockItems={stockItems}
               journal={journalEntries}
               storeConfig={storeConfig}
+              onImportTransactions={handleImportExcelData}
             />
           )}
 

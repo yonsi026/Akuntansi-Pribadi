@@ -10,9 +10,111 @@ import {
   Trash2, 
   User, 
   BookOpen, 
-  HelpCircle 
+  HelpCircle,
+  Sparkles
 } from "lucide-react";
 import { StoreConfig, DemoProduct } from "../types";
+
+export const BUSINESS_TYPE_PRESETS: Record<string, { label: string; defaultName: string; defaultCity: string; products: DemoProduct[] }> = {
+  "Kontraktor / Konstruksi / Supplier": {
+    label: "Kontraktor / Konstruksi / Supplier",
+    defaultName: "CV Cipta Karya Mandiri (Kontraktor & Supplier)",
+    defaultCity: "Surabaya",
+    products: [
+      {
+        name: "Semen Portland Composite (50kg)",
+        sku: "SMN-50KG",
+        unit: "Sak",
+        avgPurchasePrice: 62000,
+        sellPrice: 75000
+      },
+      {
+        name: "Besi Beton Ulir 12mm SNI (Batang 12m)",
+        sku: "BSI-12MM",
+        unit: "Batang",
+        avgPurchasePrice: 115000,
+        sellPrice: 135000
+      },
+      {
+        name: "Pasir Cor Muntilan Berkualitas (M3)",
+        sku: "PSR-M3",
+        unit: "M3",
+        avgPurchasePrice: 280000,
+        sellPrice: 350000
+      },
+      {
+        name: "Cat Tembok Weather Shield Pail 20L",
+        sku: "CAT-20L",
+        unit: "Pail",
+        avgPurchasePrice: 650000,
+        sellPrice: 780000
+      }
+    ]
+  },
+  "Konsultan Perencana & Desain": {
+    label: "Konsultan Perencana & Desain",
+    defaultName: "Studio Rekagatra Konsultan & Desain",
+    defaultCity: "Bandung",
+    products: [
+      {
+        name: "Paket Desain Arsitektur & Gambar Kerja DED",
+        sku: "JSA-ARS01",
+        unit: "Paket",
+        avgPurchasePrice: 5000000,
+        sellPrice: 15000000
+      },
+      {
+        name: "Perhitungan Analisis Struktur Bangunan & RAB",
+        sku: "JSA-STR01",
+        unit: "Dokumen",
+        avgPurchasePrice: 3000000,
+        sellPrice: 8500000
+      },
+      {
+        name: "Paket Desain Interior & 3D Render Photorealistic",
+        sku: "JSA-3D01",
+        unit: "Ruang",
+        avgPurchasePrice: 1500000,
+        sellPrice: 4000000
+      },
+      {
+        name: "Jasa Pengawasan Berkala Proyek (Site Supervision)",
+        sku: "JSA-SPV01",
+        unit: "Kunjungan",
+        avgPurchasePrice: 800000,
+        sellPrice: 2500000
+      }
+    ]
+  },
+  "Toko Sembako": {
+    label: "Toko Sembako / Kelontong",
+    defaultName: "Toko Sembako Berkah Ibu Mumun",
+    defaultCity: "Kota Jakarta",
+    products: [
+      {
+        name: "Beras Pandan Wangi 5kg",
+        sku: "BRS-PW5",
+        unit: "Box",
+        avgPurchasePrice: 65000,
+        sellPrice: 85000
+      },
+      {
+        name: "Minyak Goreng Kita 1 Liter",
+        sku: "MNG-KT1",
+        unit: "Pcs",
+        avgPurchasePrice: 13500,
+        sellPrice: 17000
+      },
+      {
+        name: "Telur Ayam Negeri per Kg",
+        sku: "TLR-AY1",
+        unit: "Kg",
+        avgPurchasePrice: 24000,
+        sellPrice: 30000
+      }
+    ]
+  }
+};
 
 export const DEFAULT_STORE_CONFIG: StoreConfig = {
   storeType: "Toko Sembako",
@@ -68,6 +170,17 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
   );
 
   const [notif, setNotif] = useState<string>("");
+
+  const applyPreset = (typeKey: string) => {
+    const preset = BUSINESS_TYPE_PRESETS[typeKey];
+    if (!preset) return;
+    setStoreType(typeKey);
+    setStoreName(preset.defaultName);
+    setStoreCity(preset.defaultCity);
+    setDemoProducts(preset.products);
+    setNotif(`Template "${preset.label}" berhasil dimuat! Silakan klik tombol Simpan Pengaturan di bawah.`);
+    setTimeout(() => setNotif(""), 5000);
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,19 +300,54 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
 
             {/* Shop Type */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Jenis Toko</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">Jenis Bidang Usaha</label>
+                {BUSINESS_TYPE_PRESETS[storeType] && (
+                  <button
+                    type="button"
+                    onClick={() => applyPreset(storeType)}
+                    className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    title="Muat contoh nama usaha & katalog barang/jasa sesuai bidang ini"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Pakai Template</span>
+                  </button>
+                )}
+              </div>
               <select
                 value={storeType}
                 onChange={(e) => setStoreType(e.target.value)}
                 className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 outline-none bg-white font-semibold"
               >
-                <option value="Toko Sembako">Toko Sembako / Kelontong</option>
-                <option value="Toko Fashion">Toko Fashion &amp; Pakaian</option>
-                <option value="Apotek">Apotek &amp; Toko Obat</option>
-                <option value="Toko Elektronik">Toko Elektronik &amp; Gadget</option>
-                <option value="Warung Kuliner">Warung Bakso / Cafe / Kuliner</option>
-                <option value="Lainnya">Lainnya (Penyedia Jasa &amp; Dagang)</option>
+                <option value="Kontraktor / Konstruksi / Supplier">🏗️ Kontraktor / Konstruksi / Supplier</option>
+                <option value="Konsultan Perencana & Desain">📐 Konsultan Perencana &amp; Desain</option>
+                <option value="Toko Sembako">🌾 Toko Sembako / Kelontong</option>
+                <option value="Minimarket & Retail">🏪 Minimarket &amp; Retail</option>
+                <option value="Toko Fashion">👗 Toko Fashion &amp; Pakaian</option>
+                <option value="Apotek">💊 Apotek &amp; Toko Obat</option>
+                <option value="Toko Elektronik">📱 Toko Elektronik &amp; Gadget</option>
+                <option value="Warung Kuliner">🍜 Warung Bakso / Cafe / Kuliner</option>
+                <option value="Bengkel & Toko Sparepart">🔧 Bengkel &amp; Toko Sparepart</option>
+                <option value="Jasa & Servis Profesional">💼 Jasa &amp; Servis Profesional</option>
+                <option value="Pabrikasi / Konveksi Rumahan">🏭 Pabrikasi / Konveksi Rumahan</option>
+                <option value="Lainnya">📦 Lainnya (Penyedia Jasa &amp; Dagang)</option>
               </select>
+
+              {BUSINESS_TYPE_PRESETS[storeType] && (
+                <div className="mt-2 p-2.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-indigo-950 text-[11px] font-medium leading-tight">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>Template katalog &amp; produk tersedia untuk <strong>{storeType}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset(storeType)}
+                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer shadow-2xs"
+                  >
+                    Terapkan
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* City */}

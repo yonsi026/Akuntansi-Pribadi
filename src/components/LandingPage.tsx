@@ -269,8 +269,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, initia
               </h1>
 
               <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
-                Aplikasi akuntansi cerdas khusus pengusaha UMKM, pedagang ritel, dan bisnis lokal. Otomatisasi jurnal dua sisi (double-entry), hitung harga pokok penjualan (HPP), neraca real-time, hingga siap cetak laporan untuk pengajuan modal bank.
+                Aplikasi akuntansi cerdas terpadu untuk UMKM, ritel, <strong>kontraktor/konstruksi/supplier</strong>, hingga <strong>konsultan perencana &amp; desain</strong>. Otomatisasi jurnal dua sisi (double-entry), mutasi kas &amp; proyek, hitung HPP/biaya pekerjaan, neraca real-time, hingga siap cetak laporan resmi SAK EMKM.
               </p>
+
+              {/* Supported Sectors Badge Strip */}
+              <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-slate-700">
+                <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1">
+                  <span>🏗️ Kontraktor &amp; Konstruksi</span>
+                </span>
+                <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1">
+                  <span>🚚 Supplier Material</span>
+                </span>
+                <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1">
+                  <span>📐 Konsultan Perencana &amp; Desain</span>
+                </span>
+                <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs flex items-center gap-1">
+                  <span>🌾 Ritel &amp; Sembako</span>
+                </span>
+              </div>
 
               {/* Quick Action Selector */}
               <div className="bg-slate-100/90 border border-slate-200 p-4 rounded-2xl space-y-2.5 max-w-xl shadow-xs">
@@ -575,7 +591,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, initia
                               type="text"
                               value={regStoreName}
                               onChange={(e) => setRegStoreName(e.target.value)}
-                              placeholder="cth. Toko Berkah Mandiri"
+                              placeholder="cth. CV Cipta Karya / Studio Rekacipta / Toko Berkah"
                               className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-600 focus:outline-hidden transition"
                               required
                             />
@@ -591,17 +607,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, initia
                           <select
                             value={regStoreType}
                             onChange={(e) => setRegStoreType(e.target.value)}
-                            className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-600 focus:outline-hidden transition"
+                            className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-600 focus:outline-hidden transition font-medium"
                           >
-                            <option value="Toko Kelontong & Sembako">Toko Kelontong & Sembako</option>
-                            <option value="Minimarket & Retail">Minimarket & Retail</option>
-                            <option value="Kafe & Restoran (F&B)">Kafe & Restoran (F&B)</option>
-                            <option value="Fashion, Butik & Pakaian">Fashion, Butik & Pakaian</option>
-                            <option value="Apotek & Toko Obat">Apotek & Toko Obat</option>
-                            <option value="Bengkel & Toko Sparepart">Bengkel & Toko Sparepart</option>
-                            <option value="Toko Elektronik & Handphone">Toko Elektronik & Handphone</option>
-                            <option value="Jasa & Servis Profesional">Jasa & Servis Profesional</option>
-                            <option value="Pabrikasi / Konveksi Rumahan">Pabrikasi / Konveksi Rumahan</option>
+                            <option value="Kontraktor / Konstruksi / Supplier">🏗️ Kontraktor / Konstruksi / Supplier</option>
+                            <option value="Konsultan Perencana & Desain">📐 Konsultan Perencana &amp; Desain</option>
+                            <option value="Toko Kelontong & Sembako">🌾 Toko Kelontong &amp; Sembako</option>
+                            <option value="Minimarket & Retail">🏪 Minimarket &amp; Retail</option>
+                            <option value="Kafe & Restoran (F&B)">🍜 Kafe &amp; Restoran (F&B)</option>
+                            <option value="Fashion, Butik & Pakaian">👗 Fashion, Butik &amp; Pakaian</option>
+                            <option value="Apotek & Toko Obat">💊 Apotek &amp; Toko Obat</option>
+                            <option value="Bengkel & Toko Sparepart">🔧 Bengkel &amp; Toko Sparepart</option>
+                            <option value="Toko Elektronik & Handphone">📱 Toko Elektronik &amp; Handphone</option>
+                            <option value="Jasa & Servis Profesional">💼 Jasa &amp; Servis Profesional</option>
+                            <option value="Pabrikasi / Konveksi Rumahan">🏭 Pabrikasi / Konveksi Rumahan</option>
                           </select>
                         </div>
 
