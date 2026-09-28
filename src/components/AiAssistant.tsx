@@ -16,13 +16,15 @@ interface AiAssistantProps {
   transactions: Transaction[];
   stockItems: StockItem[];
   storeConfig?: StoreConfig;
+  initialMode?: string;
 }
 
 export const AiAssistant: React.FC<AiAssistantProps> = ({
   stats,
   transactions,
   stockItems,
-  storeConfig
+  storeConfig,
+  initialMode
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -156,6 +158,12 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
       setAuditLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialMode === 'audit' && !auditSummary && !auditLoading) {
+      handleTriggerDeepAudit();
+    }
+  }, [initialMode]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

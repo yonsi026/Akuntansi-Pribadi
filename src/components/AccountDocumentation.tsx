@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   BookText, 
   Search, 
@@ -19,10 +19,16 @@ import {
   EyeOff,
   X,
   Check,
-  FileCheck
+  FileCheck,
+  ShieldCheck,
+  Scale,
+  Bookmark,
+  FileSpreadsheet
 } from "lucide-react";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
 import { StoreConfig } from "../types";
+import { UniversalPrintModal } from "./UniversalPrintModal";
+import { downloadHtmlStringToPdf, buildStandaloneHtml } from "../utils/printHelper";
 
 interface AccountDetail {
   id: number;
@@ -727,12 +733,25 @@ export function generateAccountGuideHtml(storeConfig?: StoreConfig): string {
 
 interface AccountDocumentationProps {
   storeConfig?: StoreConfig;
+  initialTab?: 'coa' | 'pedoman';
 }
 
-export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ storeConfig }) => {
+export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ 
+  storeConfig,
+  initialTab = 'coa'
+}) => {
+  const [docTab, setDocTab] = useState<'coa' | 'pedoman'>(initialTab === 'pedoman' ? 'pedoman' : 'coa');
+
+  useEffect(() => {
+    if (initialTab) {
+      setDocTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [showUniversalModal, setShowUniversalModal] = useState<boolean>(false);
   const [isPreviewA4, setIsPreviewA4] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
@@ -750,50 +769,43 @@ export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ stor
   });
 
   const handlePrintClick = () => {
-    setIsPrinting(true);
-    setShowPrintModal(true);
-    try {
-      window.print();
-    } catch (e) {
-      console.warn("window.print() terpanggil:", e);
-    }
-    setTimeout(() => {
-      setIsPrinting(false);
-    }, 800);
+    setShowUniversalModal(true);
   };
 
-  const handleDownloadHtml = () => {
+  const handleDownloadHtml = async () => {
     try {
       const htmlContent = generateAccountGuideHtml(storeConfig);
-      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
       const safeStoreName = (storeConfig?.storeName || "Toko").replace(/[^a-zA-Z0-9]/g, "-");
-      link.href = url;
-      link.download = `Buku-Panduan-Kode-Akun-SAK-EMKM-${safeStoreName}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 4000);
+      const ok = await downloadHtmlStringToPdf(
+        htmlContent, 
+        `Buku-Panduan-Kode-Akun-SAK-EMKM-${safeStoreName}.pdf`,
+        `Panduan Kode Akun - ${storeConfig?.storeName || 'SAK EMKM'}`
+      );
+      if (ok) {
+        setDownloadSuccess(true);
+        setTimeout(() => setDownloadSuccess(false), 4000);
+      }
     } catch (err) {
-      console.error("Gagal mengunduh dokumen:", err);
+      console.error("Gagal mengunduh dokumen PDF:", err);
     }
   };
 
   const handleOpenInNewTab = () => {
     try {
       const htmlContent = generateAccountGuideHtml(storeConfig);
-      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const fullHtml = buildStandaloneHtml(
+        htmlContent, 
+        `Panduan Kode Akun SAK EMKM - ${storeConfig?.storeName || 'SAK EMKM'}`
+      );
+      const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const newWin = window.open(url, "_blank");
       if (!newWin || newWin.closed || typeof newWin.closed === "undefined") {
-        handleDownloadHtml();
+        setShowUniversalModal(true);
       }
     } catch (err) {
       console.error("Gagal membuka tab baru:", err);
-      handleDownloadHtml();
+      setShowUniversalModal(true);
     }
   };
 
@@ -868,6 +880,141 @@ export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ stor
         </div>
       </div>
 
+      {docTab === 'pedoman' && (
+        <div className="space-y-6 animate-fade-in" id="pedoman-sak-emkm-view">
+          {/* Header Pedoman */}
+          <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900 text-white p-6 sm:p-8 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-400/30 uppercase tracking-widest">
+                Standar Resmi IAI
+              </span>
+              <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-400/30">
+                Kepatuhan UU No. 20 Tahun 2008 &amp; PP 55 / 2022
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight font-sans">
+              Pedoman Standar Akuntansi Keuangan Entitas Mikro, Kecil, dan Menengah (SAK EMKM)
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+              SAK EMKM adalah standar akuntansi keuangan sederhana yang diterbitkan oleh Dewan Standar Akuntansi Keuangan Ikatan Akuntan Indonesia (DSAK IAI) khusus dirancang bagi UMKM Indonesia agar dapat menyusun laporan keuangan yang tertib, diakui perbankan, dan sesuai ketentuan perpajakan nasional.
+            </p>
+          </div>
+
+          {/* 3 Komponen Laporan Keuangan SAK EMKM */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 font-sans">
+                <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
+                3 Komponen Laporan Keuangan Wajib SAK EMKM
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Sesuai Bab 3 SAK EMKM, laporan keuangan entitas terdiri secara lengkap dan utuh atas 3 laporan berikut:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 font-mono">Komponen 1</span>
+                  <Scale className="w-4 h-4 text-indigo-600" />
+                </div>
+                <h4 className="font-bold text-sm text-slate-900">1. Laporan Posisi Keuangan (Neraca)</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Menyajikan posisi aset (kas, bank, piutang, persediaan, aset tetap), liabilitas (utang usaha, utang bank, utang beban), dan ekuitas (modal pemilik, laba ditahan) pada akhir periode pembukuan.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 font-mono">Komponen 2</span>
+                  <FileText className="w-4 h-4 text-emerald-600" />
+                </div>
+                <h4 className="font-bold text-sm text-slate-900">2. Laporan Laba Rugi</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Menyajikan kinerja usaha entitas selama periode berjalan. Memperhitungkan seluruh pendapatan omzet dikurangi Beban Pokok Penjualan (HPP) dan seluruh beban operasional untuk menghasilkan laba/rugi bersih.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 font-mono">Komponen 3</span>
+                  <Bookmark className="w-4 h-4 text-amber-600" />
+                </div>
+                <h4 className="font-bold text-sm text-slate-900">3. Catatan Atas Lap. Keuangan (CALK)</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Memuat pernyataan resmi bahwa laporan keuangan telah disusun sesuai SAK EMKM, ringkasan kebijakan akuntansi penting (kebijakan persediaan &amp; penyusutan), serta rincian penting pos-pos neraca.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Konsep Dasar & Prinsip Akuntansi */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                Asumsi &amp; Karakteristik Kualitatif Dasar
+              </h4>
+              <ul className="space-y-3 text-xs text-slate-600">
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                  <div>
+                    <strong className="text-slate-900 block">Dasar Akrual (Accrual Basis):</strong>
+                    Pos-pos diakui sebagai aset, liabilitas, ekuitas, pendapatan, dan beban ketika memenuhi kriteria definisi pengakuan, bukan sekadar saat uang tunai diterima atau dibayarkan.
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                  <div>
+                    <strong className="text-slate-900 block">Kelangsungan Usaha (Going Concern):</strong>
+                    Entitas menyusun laporan keuangan dengan asumsi bahwa usaha akan beroperasi secara berkelanjutan di masa depan.
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                  <div>
+                    <strong className="text-slate-900 block">Keterpahaman &amp; Relevansi:</strong>
+                    Informasi disajikan secara sederhana, sistematis, dan relevan agar mudah dievaluasi pemilik toko dan pihak perbankan.
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Scale className="w-4 h-4 text-emerald-600" />
+                Kebijakan Pengakuan &amp; Pengukuran SAK EMKM
+              </h4>
+              <ul className="space-y-3 text-xs text-slate-600">
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                  <div>
+                    <strong className="text-slate-900 block">Biaya Historis (Historical Cost):</strong>
+                    Aset dan kewajiban dicatat sebesar biaya perolehan transaksi sebenarnya. Tidak ada revaluasi nilai wajar yang membingungkan.
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                  <div>
+                    <strong className="text-slate-900 block">Metode Persediaan (Weighted Moving Average):</strong>
+                    HPP barang dagang dinilai berdasarkan rata-rata tertimbang bergerak secara otomatis setiap kulakan baru dicatat.
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                  <div>
+                    <strong className="text-slate-900 block">Penyusutan Aset Tetap:</strong>
+                    Aset tetap disusutkan menggunakan metode garis lurus (straight-line) tanpa memperhitungkan nilai residu/sisa.
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {docTab === 'coa' && (
+      <>
       {/* ACTIVE A4 BANNER */}
       {isPreviewA4 && (
         <div className="no-print bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl flex items-center justify-between text-xs font-medium">
@@ -1180,6 +1327,8 @@ export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ stor
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* MODAL CETAK & UNDUH DOKUMEN PANDUAN */}
       {showPrintModal && (
@@ -1316,6 +1465,15 @@ export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ stor
           </div>
         </div>
       )}
+
+      {/* UNIVERSAL PRINT & PDF EXPORT MODAL */}
+      <UniversalPrintModal
+        isOpen={showUniversalModal}
+        onClose={() => setShowUniversalModal(false)}
+        title={`Buku Panduan Kode Akun & Pedoman SAK EMKM - ${storeConfig?.storeName || 'SAK EMKM'}`}
+        filename={`Panduan-Bagan-Akun-SAK-EMKM-${Date.now()}.pdf`}
+        htmlContent={generateAccountGuideHtml(storeConfig)}
+      />
     </div>
   );
 };

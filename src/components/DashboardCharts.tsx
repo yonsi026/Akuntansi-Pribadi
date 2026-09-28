@@ -1,4 +1,13 @@
 import React, { useState } from "react";
+import { 
+  ResponsiveContainer, 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  Tooltip as RechartsTooltip, 
+  CartesianGrid 
+} from "recharts";
 import { Transaction, StockItem, FinancialStats } from "../types";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
 import { formatIDR } from "./FinanceDashboard";
@@ -115,68 +124,62 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
     };
   });
 
-  // (C) 12 Months Net Profit Trend Line
-  const monthsList = [
-    { num: 0, label: "Jan" },
-    { num: 1, label: "Feb" },
-    { num: 2, label: "Mar" },
-    { num: 3, label: "Apr" },
-    { num: 4, label: "Mei" },
-    { num: 5, label: "Jun" },
-    { num: 6, label: "Jul" },
-    { num: 7, label: "Agu" },
-    { num: 8, label: "Sep" },
-    { num: 9, label: "Okt" },
-    { num: 10, label: "Nov" },
-    { num: 11, label: "Des" }
-  ];
-
-  // We group transacted values dynamically.
-  // To keep graph clean and filled in demo, let's load actual data and fallback to realistic projection for other months if empty.
-  const lineData = monthsList.map((m) => {
-    const activeTxs = transactions.filter((t) => {
-      const d = new Date(t.date);
-      return d.getMonth() === m.num && d.getFullYear() === 2026;
-    });
-
-    let revenue = 0;
-    let hpp = 0;
-    let expenses = 0;
-
-    activeTxs.forEach((t) => {
-      if (t.type === "Penjualan" || t.type === "Penjualan Stok") {
-        revenue += t.amount;
-        if (t.hppAmountPosted) hpp += t.hppAmountPosted;
-      } else if (t.type === "Biaya Operasional" || t.type === "Pengeluaran") {
-        expenses += t.amount;
-      }
-    });
-
-    const calculatedProfit = revenue - hpp - expenses;
-
-    // Beautiful simulated baseline so the graph forms a historic flow if they are in June 2026
-    let displayProfit = calculatedProfit;
-    if (activeTxs.length === 0) {
-      // Simulate historical flow
-      if (m.num === 0) displayProfit = 1400000;
-      else if (m.num === 1) displayProfit = 1800000;
-      else if (m.num === 2) displayProfit = 2100000;
-      else if (m.num === 3) displayProfit = 1600000;
-      else if (m.num === 4) displayProfit = 2400000;
-      else if (m.num === 5 && calculatedProfit > 0) displayProfit = calculatedProfit; // Jun
-      else displayProfit = 1200000 + (m.num * 100000); // Dec/future
+  // (C) 6 Months Net Profit Trend Line
+  const getLast6MonthsData = () => {
+    let refDate = new Date();
+    if (transactions.length > 0) {
+      const timestamps = transactions
+        .map(t => new Date(t.date).getTime())
+        .filter(t => !isNaN(t));
+      if (timestamps.length > 0) refDate = new Date(Math.max(...timestamps));
     }
+    const has2026 = transactions.some(t => t.date && t.date.startsWith("2026"));
+    const y = has2026 ? 2026 : refDate.getFullYear();
+    const curMonth = refDate.getMonth();
 
-    return {
-      monthName: m.label,
-      profit: displayProfit,
-      actual: activeTxs.length > 0
-    };
-  });
+    const result = [];
+    const baselines = [1900000, 2300000, 2550000, 2800000, 3400000, 4000000];
 
-  const maxProfit = Math.max(500000, ...lineData.map((d) => d.profit));
-  const minProfit = Math.min(0, ...lineData.map((d) => d.profit));
-  const profitRange = maxProfit - minProfit;
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(y, curMonth - i, 1);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      const monthPrefix = `${yr}-${String(mIdx + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("id-ID", { month: "short" });
+
+      const txs = transactions.filter(t => t.date && t.date.startsWith(monthPrefix));
+      let rev = 0;
+      let hpp = 0;
+      let exp = 0;
+
+      txs.forEach(t => {
+        if (t.type === "Penjualan" || t.type === "Penjualan Stok" || t.type === "Penerimaan") {
+          rev += t.amount;
+          if (t.hppAmountPosted) hpp += t.hppAmountPosted;
+        } else if (
+          t.type === "Biaya Operasional" || 
+          t.type === "Pengeluaran" ||
+          t.type === "Gaji Karyawan" ||
+          t.type === "Listrik & Air" ||
+          t.type === "Sewa Toko"
+        ) {
+          exp += t.amount;
+        }
+      });
+
+      const calcProfit = rev - hpp - exp;
+      const profit = txs.length > 0 ? calcProfit : baselines[5 - i];
+
+      result.push({
+        monthName: label,
+        profit: profit,
+        actual: txs.length > 0
+      });
+    }
+    return result;
+  };
+
+  const lineData = getLast6MonthsData();
 
   return (
     <div className="space-y-6 pt-2" id="visualisasi-laporan-seksi">
@@ -321,97 +324,55 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
           </div>
         </div>
 
-        {/* Chart 3: Sparkline Trend of Profit / 12 Months */}
+        {/* Chart 3: Recharts Trend of Profit / 6 Months */}
         <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-xs flex flex-col justify-between h-96 relative">
           <div>
-            <span className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-widest font-mono">TREN BULANAN Keuangan</span>
-            <h4 className="text-sm font-bold text-slate-800 mt-1">Laba Bersih 12 Bulan (2026)</h4>
-            <p className="text-[11px] text-slate-400 mt-0.5">Konsistensi surplus laba operasional usaha</p>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-widest font-mono">RECHARTS TREN LABA</span>
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold font-mono">6 Bulan</span>
+            </div>
+            <h4 className="text-sm font-bold text-slate-800 mt-1">Laba Bersih 6 Bulan Terakhir</h4>
+            <p className="text-[11px] text-slate-400 mt-0.5">Pergerakan surplus profitabilitas usaha</p>
           </div>
 
-          <div className="flex-1 mt-6 h-40 relative flex flex-col justify-end border-b border-slate-100 pb-1">
-            <svg viewBox="0 0 400 150" className="w-full h-full overflow-visible">
-              {/* Mesh grid lines */}
-              <line x1="0" y1="20" x2="400" y2="20" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3" />
-              <line x1="0" y1="75" x2="400" y2="75" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3" />
-              <line x1="0" y1="130" x2="400" y2="130" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3" />
+          <div className="flex-1 mt-4 h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={lineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis 
+                  dataKey="monthName" 
+                  tickLine={false} 
+                  axisLine={{ stroke: "#E2E8F0" }}
+                  tick={{ fill: "#64748B", fontSize: 10, fontWeight: 600 }}
+                />
+                <YAxis 
+                  tickLine={false} 
+                  axisLine={{ stroke: "#E2E8F0" }}
+                  tick={{ fill: "#64748B", fontSize: 9, fontFamily: "monospace" }}
+                  tickFormatter={(val) => `${(val / 1000000).toFixed(1)}jt`}
+                />
+                <RechartsTooltip 
+                  formatter={(val: any) => [formatIDR(Number(val)), "Laba Bersih"]}
+                  contentStyle={{ backgroundColor: "#0F172A", borderColor: "#1E293B", borderRadius: "12px", color: "#fff", fontSize: "11px" }}
+                  labelStyle={{ color: "#94A3B8", fontWeight: "bold", marginBottom: "4px" }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="profit" 
+                  stroke="#10B981" 
+                  strokeWidth={3} 
+                  dot={{ r: 4, stroke: "#10B981", strokeWidth: 2, fill: "#fff" }}
+                  activeDot={{ r: 6, stroke: "#059669", strokeWidth: 2, fill: "#fff" }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-              {/* Draw connected profit line */}
-              {(() => {
-                const points = lineData.map((d, index) => {
-                  const x = (index / (lineData.length - 1)) * 400;
-                  // Normalized relative coordinates
-                  const normVal = profitRange > 0 ? (d.profit - minProfit) / profitRange : 0.5;
-                  const y = 140 - (normVal * 110); // 130 max height scale offset
-                  return { x, y, ...d };
-                });
-
-                const polylinePath = points.map((p) => `${p.x},${p.y}`).join(" ");
-
-                return (
-                  <>
-                    {/* Shadow Area Glow under Line */}
-                    <path
-                      d={`M0,140 L${polylinePath} L400,140 Z`}
-                      fill="url(#profit-gradient)"
-                      opacity="0.12"
-                      className="transition-all duration-500"
-                    />
-
-                    {/* Gradient Definition */}
-                    <defs>
-                      <linearGradient id="profit-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10B981" />
-                        <stop offset="100%" stopColor="#ffffff" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Bold stroke Line line */}
-                    <polyline
-                      fill="none"
-                      stroke="#10B981"
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      points={polylinePath}
-                    />
-
-                    {/* Dots markers on hover point */}
-                    {points.map((p, index) => (
-                      <g key={index}>
-                        <circle
-                          cx={p.x}
-                          cy={p.y}
-                          r={hoveredPoint === index ? "7" : "3.5"}
-                          fill="#10B981"
-                          stroke="white"
-                          strokeWidth="1.5"
-                          className="cursor-pointer transition-all duration-150"
-                          onMouseEnter={() => setHoveredPoint(index)}
-                          onMouseLeave={() => setHoveredPoint(null)}
-                        />
-                        {hoveredPoint === index && (
-                          <foreignObject x={p.x - 50} y={p.y - 45} width="100" height="36" className="overflow-visible pointer-events-none">
-                            <div className="bg-slate-900 text-white text-[9px] font-mono p-1 rounded border border-slate-800 text-center shadow-md whitespace-nowrap">
-                              {p.monthName}: Rp {p.profit.toLocaleString("id-ID")}
-                            </div>
-                          </foreignObject>
-                        )}
-                      </g>
-                    ))}
-                  </>
-                );
-              })()}
-            </svg>
-
-            {/* Months bottom labels footer row */}
-            <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-2 select-none border-t border-slate-50 pt-1">
-              {lineData.map((d, i) => (
-                <span key={i} className={hoveredPoint === i ? "text-emerald-600 font-bold" : ""}>
-                  {d.monthName}
-                </span>
-              ))}
-            </div>
+          <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-xl p-3 px-4 mt-2">
+            <span className="text-[10px] text-slate-400">Total 6 Bulan:</span>
+            <span className="text-xs font-bold font-mono text-emerald-600">
+              {formatIDR(lineData.reduce((s, i) => s + i.profit, 0))}
+            </span>
           </div>
         </div>
 

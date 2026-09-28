@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Store, 
   MapPin, 
@@ -11,9 +11,18 @@ import {
   User, 
   BookOpen, 
   HelpCircle,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  KeyRound,
+  Laptop,
+  Cpu,
+  Copy,
+  Check,
+  Lock,
+  Unlock
 } from "lucide-react";
 import { StoreConfig, DemoProduct } from "../types";
+import { getActiveLicense, getHardwareProfile, revokeLicense, LicenseData, HardwareProfile } from "../utils/licenseManager";
 
 export const BUSINESS_TYPE_PRESETS: Record<string, { label: string; defaultName: string; defaultCity: string; products: DemoProduct[] }> = {
   "Kontraktor / Konstruksi / Supplier": {
@@ -151,12 +160,14 @@ interface StoreSettingsProps {
   config: StoreConfig;
   onSaveConfig: (newConfig: StoreConfig) => void;
   onLoadCustomDemoData: (customConfig: StoreConfig) => void;
+  onOpenActivationModal?: () => void;
 }
 
 export const StoreSettings: React.FC<StoreSettingsProps> = ({
   config,
   onSaveConfig,
-  onLoadCustomDemoData
+  onLoadCustomDemoData,
+  onOpenActivationModal
 }) => {
   const [storeType, setStoreType] = useState<string>(config?.storeType || DEFAULT_STORE_CONFIG.storeType);
   const [storeName, setStoreName] = useState<string>(config?.storeName || DEFAULT_STORE_CONFIG.storeName);
@@ -170,6 +181,22 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
   );
 
   const [notif, setNotif] = useState<string>("");
+  const [licenseInfo, setLicenseInfo] = useState<LicenseData | null>(null);
+  const [hardwareInfo, setHardwareInfo] = useState<HardwareProfile | null>(null);
+  const [copiedId, setCopiedId] = useState<boolean>(false);
+
+  useEffect(() => {
+    setLicenseInfo(getActiveLicense());
+    setHardwareInfo(getHardwareProfile());
+  }, []);
+
+  const handleCopyId = () => {
+    if (hardwareInfo?.machineId && navigator.clipboard) {
+      navigator.clipboard.writeText(hardwareInfo.machineId);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
 
   const applyPreset = (typeKey: string) => {
     const preset = BUSINESS_TYPE_PRESETS[typeKey];
@@ -571,6 +598,119 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
         </div>
 
       </form>
+
+      {/* HARDWARE MACHINE LICENSING & ANTI-PIRACY CARD */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden mt-6" id="lisensi-hardware-section">
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+              <ShieldCheck className="w-6 h-6 text-indigo-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">Status Lisensi &amp; Kunci Hardware Komputer</h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  licenseInfo 
+                    ? licenseInfo.licenseType === "trial" 
+                      ? "bg-amber-400/20 text-amber-300 border border-amber-400/30" 
+                      : "bg-emerald-400/20 text-emerald-300 border border-emerald-400/30" 
+                    : "bg-rose-400/20 text-rose-300 border border-rose-400/30"
+                }`}>
+                  {licenseInfo 
+                    ? licenseInfo.licenseType === "lifetime" ? "Seumur Hidup (Lifetime)" : licenseInfo.licenseType === "annual" ? "Tahunan (1 Tahun)" : "Masa Uji Coba (Trial)" 
+                    : "Belum Teraktivasi"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Sistem Proteksi Anti-Pembajakan: Lisensi dikunci secara kriptografis pada hardware mesin laptop/komputer ini
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenActivationModal}
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <KeyRound className="w-4 h-4" />
+            <span>{licenseInfo ? "Kelola / Perbarui Lisensi" : "🔑 Masukkan Kode Aktivasi"}</span>
+          </button>
+        </div>
+
+        <div className="p-5 sm:p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Machine ID Box */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-indigo-600" />
+                Serial ID Mesin Komputer Ini:
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 font-mono font-black text-slate-900 text-sm tracking-wider text-center select-all">
+                  {hardwareInfo?.machineId || "MACH-SCANNING-HARDWARE"}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyId}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer shrink-0"
+                  title="Salin Serial ID Mesin Hardware"
+                >
+                  {copiedId ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedId ? "Disalin!" : "Salin ID"}</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400">
+                Kirimkan ID Mesin ini ke vendor untuk mendapatkan Kode Aktivasi lisensi resmi.
+              </p>
+            </div>
+
+            {/* License Details Box */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                Informasi Registrasi Lisensi:
+              </span>
+              {licenseInfo ? (
+                <div className="text-xs space-y-1 text-slate-700">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Pemilik Lisensi:</span>
+                    <span className="font-bold text-slate-900">{licenseInfo.ownerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Toko Terdaftar:</span>
+                    <span className="font-bold text-slate-900">{licenseInfo.storeName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Kode Aktivasi:</span>
+                    <span className="font-mono text-indigo-700 font-bold">{licenseInfo.activationCode}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Masa Berlaku:</span>
+                    <span className="font-bold text-emerald-700">
+                      {licenseInfo.expiresAt 
+                        ? new Date(licenseInfo.expiresAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+                        : "Seumur Hidup (Permanen Tanpa Kadaluarsa)"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 py-1 space-y-2">
+                  <p>Aplikasi belum memiliki lisensi permanen yang terikat ke hardware ini.</p>
+                  <button
+                    type="button"
+                    onClick={onOpenActivationModal}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                  >
+                    Klik di sini untuk aktivasi sekarang &rarr;
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

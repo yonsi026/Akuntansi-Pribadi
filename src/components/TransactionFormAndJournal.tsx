@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   PlusCircle, 
   HelpCircle, 
@@ -33,6 +33,10 @@ import {
 import { Transaction, TransactionType, StockItem, JournalEntry, LedgerItem, StoreConfig } from "../types";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
 import { generateJournal, computeLedger, formatIDR } from "../utils/accountingEngine";
+import { InvoiceManager } from "./InvoiceManager";
+import { executePrintContent } from "../utils/printHelper";
+import { generateJournalPrintHtml, generateCashBookPrintHtml, generateLedgerPrintHtml } from "../utils/printTemplates";
+import { UniversalPrintModal } from "./UniversalPrintModal";
 
 interface TransactionFormAndJournalProps {
   transactions: Transaction[];
@@ -41,6 +45,8 @@ interface TransactionFormAndJournalProps {
   onDeleteTransaction: (id: string) => void;
   onClearTransactions: () => void;
   storeConfig?: StoreConfig;
+  initialSubTab?: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice';
+  onSubTabChange?: (tab: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice') => void;
 }
 
 interface PresetAction {
@@ -203,10 +209,36 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
   onAddTransaction,
   onDeleteTransaction,
   onClearTransactions,
-  storeConfig
+  storeConfig,
+  initialSubTab,
+  onSubTabChange
 }) => {
-  // Navigation for sub-tab: 'input' | 'jurnal' | 'bukubesar'
-  const [subTab, setSubTab] = useState<'input' | 'jurnal' | 'bukubesar'>('input');
+  // Navigation for sub-tab: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice'
+  const [subTab, setSubTab] = useState<'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice'>(initialSubTab || 'input');
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
+  const handleSwitchTab = (newTab: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice') => {
+    setSubTab(newTab);
+    onSubTabChange?.(newTab);
+  };
+
+  // Universal print modal state
+  const [printModalData, setPrintModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    filename: string;
+    html: string;
+  }>({
+    isOpen: false,
+    title: "",
+    filename: "",
+    html: ""
+  });
 
   // Form states and validation
   const [errorHeader, setErrorHeader] = useState<string | null>(null);
@@ -277,6 +309,31 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
   // History search & filter
   const [historyCategoryFilter, setHistoryCategoryFilter] = useState<string>("Semua");
   const [historySearchQuery, setHistorySearchQuery] = useState<string>("");
+
+  // Derived filtered transactions for Mutasi view and printout
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      if (historyCategoryFilter === 'Gaji & Upah' && tx.type !== 'Gaji Karyawan') return false;
+      if (historyCategoryFilter === 'Listrik & Air' && tx.type !== 'Listrik & Air') return false;
+      if (historyCategoryFilter === 'Sewa Toko' && tx.type !== 'Sewa Toko') return false;
+      if (historyCategoryFilter === 'Inventaris Furniture' && tx.type !== 'Beli Inventaris') return false;
+      if (historyCategoryFilter === 'Internet & Pulsa' && tx.type !== 'Internet & Pulsa') return false;
+      if (historyCategoryFilter === 'Perlengkapan & Servis' && tx.type !== 'Perlengkapan Toko' && tx.type !== 'Servis & Perbaikan') return false;
+      if (historyCategoryFilter === 'Penjualan' && tx.type !== 'Penjualan' && tx.type !== 'Penjualan Stok') return false;
+      if (historyCategoryFilter === 'Kulakan Stok' && tx.type !== 'Pembelian' && tx.type !== 'Pembelian Stok') return false;
+
+      if (historySearchQuery.trim()) {
+        const q = historySearchQuery.toLowerCase();
+        const matchDesc = tx.description.toLowerCase().includes(q);
+        const matchInv = (tx.invoiceNumber || '').toLowerCase().includes(q);
+        const matchEmployee = (tx.employeeName || '').toLowerCase().includes(q);
+        const matchAsset = (tx.assetType || '').toLowerCase().includes(q);
+        const matchUtil = (tx.utilityType || '').toLowerCase().includes(q);
+        return matchDesc || matchInv || matchEmployee || matchAsset || matchUtil;
+      }
+      return true;
+    });
+  }, [transactions, historyCategoryFilter, historySearchQuery]);
 
   // Ledger Filter State
   const [filteredAccountId, setFilteredAccountId] = useState<number>(1001); // Default Kas
@@ -602,45 +659,42 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
 
   return (
     <div className="space-y-6" id="transaksi-console">
-      {/* Sub tabs header selection */}
-      <div className="flex border-b border-slate-100 bg-white p-1 rounded-xl no-print">
-        <button
-          onClick={() => setSubTab('input')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition ${
-            subTab === 'input' 
-              ? 'bg-slate-900 text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <PlusCircle className="w-4 h-4" />
-          Input Transaksi Harian
-        </button>
-        <button
-          onClick={() => setSubTab('jurnal')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition ${
-            subTab === 'jurnal' 
-              ? 'bg-slate-900 text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          Jurnal Umum (Berpasangan)
-        </button>
-        <button
-          onClick={() => setSubTab('bukubesar')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition ${
-            subTab === 'bukubesar' 
-              ? 'bg-slate-900 text-white shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <ArrowRightLeft className="w-4 h-4" />
-          Buku Besar per Akun
-        </button>
-      </div>
+      {subTab === 'invoice' && (
+        <InvoiceManager
+          stockItems={stockItems}
+          storeConfig={storeConfig || ({} as any)}
+          onAddTransaction={onAddTransaction}
+        />
+      )}
 
       {subTab === 'input' && (
         <div className="space-y-6">
+          {/* Quick link to official invoice maker */}
+          <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 text-white p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-emerald-400 shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                  <span>Butuh Faktur Tagihan Resmi untuk Pelanggan?</span>
+                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30">INV/00001</span>
+                </h4>
+                <p className="text-[11px] text-slate-300">
+                  Buat faktur penjualan lengkap dengan detail ekspedisi pengiriman (Tiki/JNE), no. resi, WhatsApp billing, dan pencatatan pembayaran
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSwitchTab('invoice')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer shrink-0 shadow-xs active:scale-95 flex items-center gap-1.5"
+            >
+              <span>Buka Detil Tagihan &amp; Faktur</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="input-view">
           {/* Main Enter Form */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
@@ -1578,30 +1632,53 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
             )}
           </div>
         </div>
+      </div>
+    )}
 
-        {/* RIWAYAT LENGKAP TRANSAKSI BISNIS & OPERASIONAL */}
+      {/* RIWAYAT LENGKAP TRANSAKSI BISNIS & BUKU KAS MUTASI */}
+      {subTab === 'mutasi' && (
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5" id="history-transactions-card">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-indigo-600" />
-                Riwayat Transaksi &amp; Beban Operasional
+                Buku Kas &amp; Riwayat Mutasi Arus Kas
               </h3>
               <p className="text-xs text-slate-400">
-                Pencatatan real-time gaji staf, utilitas listrik/air, sewa toko, aset inventaris, dan penjualan
+                Pencatatan real-time arus kas masuk, kas keluar, beban operasional, dan mutasi saldo kas berjalan
               </p>
             </div>
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-72">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari transaksi, staf, no meter..."
-                value={historySearchQuery}
-                onChange={(e) => setHistorySearchQuery(e.target.value)}
-                className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-slate-500"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPrintModalData({
+                    isOpen: true,
+                    title: `Buku Kas & Riwayat Mutasi - ${storeConfig?.storeName || 'SAK EMKM'}`,
+                    filename: `Buku-Kas-${Date.now()}.pdf`,
+                    html: generateCashBookPrintHtml(filteredTransactions, storeConfig || ({} as any))
+                  });
+                }}
+                disabled={filteredTransactions.length === 0}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
+                title="Cetak Buku Kas / Mutasi (Print / PDF)"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Cetak Kas (Print / PDF)</span>
+              </button>
+
+              {/* Search Input */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari transaksi, staf, no meter..."
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -1685,29 +1762,7 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {transactions
-                    .filter(tx => {
-                      if (historyCategoryFilter === 'Gaji & Upah' && tx.type !== 'Gaji Karyawan') return false;
-                      if (historyCategoryFilter === 'Listrik & Air' && tx.type !== 'Listrik & Air') return false;
-                      if (historyCategoryFilter === 'Sewa Toko' && tx.type !== 'Sewa Toko') return false;
-                      if (historyCategoryFilter === 'Inventaris Furniture' && tx.type !== 'Beli Inventaris') return false;
-                      if (historyCategoryFilter === 'Internet & Pulsa' && tx.type !== 'Internet & Pulsa') return false;
-                      if (historyCategoryFilter === 'Perlengkapan & Servis' && tx.type !== 'Perlengkapan Toko' && tx.type !== 'Servis & Perbaikan') return false;
-                      if (historyCategoryFilter === 'Penjualan' && tx.type !== 'Penjualan' && tx.type !== 'Penjualan Stok') return false;
-                      if (historyCategoryFilter === 'Kulakan Stok' && tx.type !== 'Pembelian' && tx.type !== 'Pembelian Stok') return false;
-
-                      if (historySearchQuery.trim()) {
-                        const q = historySearchQuery.toLowerCase();
-                        const matchDesc = tx.description.toLowerCase().includes(q);
-                        const matchInv = (tx.invoiceNumber || '').toLowerCase().includes(q);
-                        const matchEmployee = (tx.employeeName || '').toLowerCase().includes(q);
-                        const matchAsset = (tx.assetType || '').toLowerCase().includes(q);
-                        const matchUtil = (tx.utilityType || '').toLowerCase().includes(q);
-                        return matchDesc || matchInv || matchEmployee || matchAsset || matchUtil;
-                      }
-                      return true;
-                    })
-                    .map((tx) => {
+                  {filteredTransactions.map((tx) => {
                       const debitAccInfo = CHART_OF_ACCOUNTS.find(a => a.id === tx.debitAccount);
                       const creditAccInfo = CHART_OF_ACCOUNTS.find(a => a.id === tx.creditAccount);
 
@@ -1879,8 +1934,7 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
             </div>
           )}
         </div>
-      </div>
-    )}
+      )}
 
       {subTab === 'jurnal' && (
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4 printable-area" id="jurnal-view">
@@ -1893,10 +1947,17 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => {
+                  setPrintModalData({
+                    isOpen: true,
+                    title: `Buku Jurnal Umum - ${storeConfig?.storeName || 'SAK EMKM'}`,
+                    filename: `Jurnal-Umum-${Date.now()}.pdf`,
+                    html: generateJournalPrintHtml(journalEntries, storeConfig || ({} as any))
+                  });
+                }}
                 disabled={journalEntries.length === 0}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
-                title="Cetak atau Simpan sebagai PDF"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                title="Pratinjau & Cetak Jurnal Umum (Hardware / PDF)"
               >
                 <Printer className="w-3.5 h-3.5" />
                 Cetak Jurnal (Print / PDF)
@@ -2071,10 +2132,22 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
-                disabled={ledgerEntries.length === 0}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
-                title="Cetak Buku Besar atau Simpan sebagai PDF"
+                onClick={() => {
+                  setPrintModalData({
+                    isOpen: true,
+                    title: `Buku Besar (${filteredAccountId} - ${selectedAccType?.name || 'Akun'}) - ${storeConfig?.storeName || 'SAK EMKM'}`,
+                    filename: `Buku-Besar-${filteredAccountId}-${Date.now()}.pdf`,
+                    html: generateLedgerPrintHtml(
+                      selectedAccType?.name || 'Akun',
+                      filteredAccountId,
+                      ledgerEntries,
+                      storeConfig || ({} as any)
+                    )
+                  });
+                }}
+                disabled={journalEntries.length === 0}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                title="Pratinjau & Cetak Buku Besar Akun Ini (Hardware / PDF)"
               >
                 <Printer className="w-3.5 h-3.5" />
                 Cetak Buku Besar (Print / PDF)
@@ -2241,6 +2314,15 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
           )}
         </div>
       )}
+
+      {/* Universal Print Modal for Journals and Cash Book */}
+      <UniversalPrintModal
+        isOpen={printModalData.isOpen}
+        onClose={() => setPrintModalData(prev => ({ ...prev, isOpen: false }))}
+        title={printModalData.title}
+        filename={printModalData.filename}
+        htmlContent={printModalData.html}
+      />
     </div>
   );
 };

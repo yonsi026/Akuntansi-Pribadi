@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { 
   FileText, 
   Download, 
@@ -19,7 +19,8 @@ import {
   X,
   FileSpreadsheet,
   Clock,
-  ArrowRight
+  ArrowRight,
+  LayoutList
 } from "lucide-react";
 import { FinancialStats, Transaction, StockItem, JournalEntry, StoreConfig } from "../types";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
@@ -33,6 +34,8 @@ import {
   getTransactionFingerprint
 } from "../utils/xlsxImport";
 import { formatIDR } from "./FinanceDashboard";
+import { UniversalPrintModal } from "./UniversalPrintModal";
+import { PrintTemplate, triggerPrintA4, ReportData } from "./PrintTemplate";
 
 interface FinancialStatementsProps {
   stats: FinancialStats;
@@ -41,6 +44,7 @@ interface FinancialStatementsProps {
   journal: JournalEntry[];
   storeConfig?: StoreConfig;
   onImportTransactions?: (mergedTxs: Transaction[], mergedStocks?: StockItem[]) => void;
+  initialReport?: 'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'ekspor' | 'import';
 }
 
 const MONTH_NAMES = [
@@ -64,9 +68,16 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
   stockItems,
   journal,
   storeConfig,
-  onImportTransactions
+  onImportTransactions,
+  initialReport
 }) => {
-  const [activeReport, setActiveReport] = useState<'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'ekspor' | 'import'>('labarugi');
+  const [activeReport, setActiveReport] = useState<'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'ekspor' | 'import'>(initialReport || 'labarugi');
+
+  useEffect(() => {
+    if (initialReport) {
+      setActiveReport(initialReport);
+    }
+  }, [initialReport]);
 
   // --- PERIOD & DATE FILTERING STATES (BULAN, TANGGAL & TAHUN) ---
   const currentYearStr = new Date().getFullYear().toString();
@@ -193,9 +204,301 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
     return `Semua Periode Pembukuan (Akumulasi s/d ${new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })})`;
   };
 
-  // Print friendly wrapper
+  // Display view mode: 'standard' (interactive cards) or 'print-sheet' (dedicated A4 PrintTemplate view directly in-page)
+  const [displayMode, setDisplayMode] = useState<'standard' | 'print-sheet'>('standard');
+  const [showA4PrintModal, setShowA4PrintModal] = useState<boolean>(false);
+
+  const [printModalData, setPrintModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    filename: string;
+    html: string;
+  }>({
+    isOpen: false,
+    title: "",
+    filename: "",
+    html: ""
+  });
+
+  // Generates structured, 100% compliant ReportData for dedicated PrintTemplate component
+  const generateA4ReportData = (reportType: string): ReportData => {
+    const periodLabel = getPeriodLabel();
+    const commonSignatures = {
+      preparer: {
+        role: "Dibuat Oleh,",
+        title: "Petugas Keuangan / Staf Akuntansi",
+        name: "Staf Akuntansi SAK EMKM",
+        date: new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })
+      },
+      approver: {
+        role: "Mengetahui & Disetujui Oleh,",
+        title: "Pimpinan / Pemilik Usaha",
+        name: storeConfig?.storeName || "Pimpinan Usaha",
+        subtitle: storeConfig?.storeCity || "Indonesia"
+      }
+    };
+
+    if (reportType === 'neraca') {
+      const kas = trialBalance.find(t => t.accountId === 1001)?.debit || 0;
+      const piutang = trialBalance.find(t => t.accountId === 1002)?.debit || 0;
+      const persediaan = trialBalance.find(t => t.accountId === 1003)?.debit || 0;
+      const ppnMasukan = trialBalance.find(t => t.accountId === 1004)?.debit || 0;
+      const peralatan = trialBalance.find(t => t.accountId === 1005)?.debit || 0;
+
+      const totalAsetLancar = kas + piutang + persediaan + ppnMasukan;
+      const totalAsetTetap = peralatan;
+      const totalAset = activeStats.totalAssets || (totalAsetLancar + totalAsetTetap);
+
+      const utangUsaha = trialBalance.find(t => t.accountId === 2001)?.credit || 0;
+      const utangPph = activeStats.pph || 0;
+      const ppnKeluaran = trialBalance.find(t => t.accountId === 2003)?.credit || 0;
+      const totalLiabilitas = activeStats.totalLiabilities || (utangUsaha + utangPph + ppnKeluaran);
+
+      const modalDisetor = trialBalance.find(t => t.accountId === 3001)?.credit || 0;
+      const prive = trialBalance.find(t => t.accountId === 3002)?.debit || 0;
+      const labaBerjalan = activeStats.netProfit || 0;
+      const totalEkuitas = activeStats.totalEquity || (modalDisetor - prive + labaBerjalan);
+
+      const balanceSheetRows = [
+        { code: "1001", name: "Kas & Setara Kas Toko", group: "Aset Lancar", amount: kas },
+        { code: "1002", name: "Piutang Usaha Penjualan", group: "Aset Lancar", amount: piutang },
+        { code: "1003", name: "Persediaan Barang Dagang (Stok)", group: "Aset Lancar", amount: persediaan },
+        { code: "1004", name: "PPN Masukan (Pajak Pembelian)", group: "Aset Lancar", amount: ppnMasukan },
+        { code: "1005", name: "Peralatan Toko & Inventaris", group: "Aset Tetap", amount: peralatan },
+        { code: "2001", name: "Utang Usaha / Supplier", group: "Liabilitas", amount: utangUsaha },
+        { code: "2002", name: "Utang Pajak PPh Final 0.5%", group: "Liabilitas", amount: utangPph },
+        { code: "2003", name: "PPN Keluaran (Pajak Penjualan)", group: "Liabilitas", amount: ppnKeluaran },
+        { code: "3001", name: "Modal Pemilik Disetor", group: "Ekuitas", amount: modalDisetor },
+        { code: "3002", name: "Penarikan Pribadi Pemilik (Prive)", group: "Ekuitas", amount: -prive },
+        { code: "3003", name: "Laba Tahun / Periode Berjalan", group: "Ekuitas", amount: labaBerjalan }
+      ];
+
+      return {
+        title: "LAPORAN NERACA (POSISI KEUANGAN)",
+        subtitle: "Standar Akuntansi Keuangan Entitas Mikro, Kecil, dan Menengah (SAK EMKM)",
+        period: `Posisi: ${periodLabel}`,
+        storeConfig,
+        columns: [
+          { key: "code", label: "Kode", width: "75px", align: "center" },
+          { key: "name", label: "Nama Akun Posisi Keuangan" },
+          { key: "group", label: "Kelompok Akun", width: "130px", align: "center" },
+          { 
+            key: "amount", 
+            label: "Nilai Buku (Rp)", 
+            width: "150px", 
+            align: "right",
+            render: (v: number | undefined) => {
+              const num = typeof v === 'number' && !isNaN(v) ? v : 0;
+              return (
+                <span className={`font-mono font-bold ${num < 0 ? "text-rose-600" : "text-slate-900"}`}>
+                  {num < 0 ? `(${Math.abs(num).toLocaleString("id-ID")})` : num.toLocaleString("id-ID")}
+                </span>
+              );
+            }
+          }
+        ],
+        rows: balanceSheetRows,
+        summaryItems: [
+          { label: "Total Aset Lancar", value: totalAsetLancar, color: "blue" },
+          { label: "Total Aset Tetap", value: totalAsetTetap, color: "indigo" },
+          { label: "Jumlah Aset (Aktiva)", value: totalAset, color: "emerald", highlight: true },
+          { label: "Total Liabilitas (Utang)", value: totalLiabilitas, color: "rose" },
+          { label: "Total Ekuitas Bersih", value: totalEkuitas, color: "indigo" }
+        ],
+        grandTotalLabel: "TOTAL LIABILITAS & EKUITAS (SEIMBANG):",
+        grandTotalValue: totalLiabilitas + totalEkuitas,
+        notes: [
+          "Laporan Posisi Keuangan disusun berdasarkan prinsip keseimbangan akuntansi: Aset = Liabilitas + Ekuitas.",
+          "Penilaian persediaan menggunakan metode rata-rata tertimbang (Moving Average) sesuai standar SAK EMKM."
+        ],
+        signatures: commonSignatures
+      };
+    }
+
+    if (reportType === 'aruskas') {
+      const cashFlowRows = [
+        { code: "CF-01", name: "Penerimaan Kas dari Pelanggan & Omzet", type: "Aktivitas Operasional", amount: receiptsFromCustomers },
+        { code: "CF-02", name: "Pengeluaran Kas untuk Pembelian Stok (Supplier)", type: "Aktivitas Operasional", amount: -paymentsForStock },
+        { code: "CF-03", name: "Pengeluaran Kas untuk Beban Operasional & Gaji", type: "Aktivitas Operasional", amount: -paymentsForExpenses },
+        { code: "CF-04", name: "Arus Kas Bersih dari Aktivitas Operasional", type: "Subtotal Operasional", amount: netCashFromOperations },
+        { code: "CF-05", name: "Pembelian Peralatan / Aset Tetap Usaha", type: "Aktivitas Investasi", amount: -netCashFromInvesting },
+        { code: "CF-06", name: "Penyetoran Tambahan Modal oleh Pemilik", type: "Aktivitas Pendanaan", amount: capitalInjections },
+        { code: "CF-07", name: "Penarikan Dana Pribadi Pemilik (Prive)", type: "Aktivitas Pendanaan", amount: -drawingsPaid },
+        { code: "CF-08", name: "Arus Kas Bersih dari Aktivitas Pendanaan", type: "Subtotal Pendanaan", amount: netCashFromFinancing }
+      ];
+
+      return {
+        title: "LAPORAN ARUS KAS (STATEMENT OF CASH FLOWS)",
+        subtitle: "Metode Langsung (Direct Cash Flow Method) SAK EMKM",
+        period: `Periode: ${periodLabel}`,
+        storeConfig,
+        columns: [
+          { key: "code", label: "No. Ref", width: "80px", align: "center" },
+          { key: "name", label: "Uraian Arus Kas Usaha" },
+          { key: "type", label: "Klasifikasi", width: "160px", align: "center" },
+          { 
+            key: "amount", 
+            label: "Arus Kas (Rp)", 
+            width: "150px", 
+            align: "right",
+            render: (v: number | undefined) => {
+              const num = typeof v === 'number' && !isNaN(v) ? v : 0;
+              return (
+                <span className={`font-mono font-bold ${num >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                  {num < 0 ? `(${Math.abs(num).toLocaleString("id-ID")})` : num.toLocaleString("id-ID")}
+                </span>
+              );
+            }
+          }
+        ],
+        rows: cashFlowRows,
+        summaryItems: [
+          { label: "Arus Kas Operasional", value: netCashFromOperations, color: "emerald" },
+          { label: "Arus Kas Investasi", value: netCashFromInvesting, color: "rose" },
+          { label: "Arus Kas Pendanaan", value: netCashFromFinancing, color: "blue" },
+          { label: "Kenaikan/Penurunan Kas", value: netIncreaseDecreaseInCash, color: "indigo" },
+          { label: "Saldo Kas Akhir", value: finalCash, color: "emerald", highlight: true }
+        ],
+        grandTotalLabel: "SALDO KAS & SETARA KAS AKHIR PERIODE:",
+        grandTotalValue: finalCash,
+        notes: [
+          "Laporan Arus Kas disusun menggunakan metode langsung (Direct Method) sesuai pedoman SAK EMKM.",
+          "Mencerminkan mutasi keluar masuk uang kas riil perusahaan selama periode berjalan."
+        ],
+        signatures: commonSignatures
+      };
+    }
+
+    if (reportType === 'neracasaldo') {
+      return {
+        title: "NERACA SALDO (TRIAL BALANCE)",
+        subtitle: "Verifikasi Keseimbangan Saldo Debit & Kredit Seluruh Kode Akun SAK EMKM",
+        period: `Posisi: ${periodLabel}`,
+        storeConfig,
+        columns: [
+          { key: "accountId", label: "Kode", width: "75px", align: "center" },
+          { key: "accountName", label: "Nama Akun / Bagan Akun" },
+          { key: "category", label: "Kategori", width: "120px", align: "center" },
+          { 
+            key: "debit", 
+            label: "Debit (Rp)", 
+            width: "130px", 
+            align: "right",
+            render: (v: number | undefined) => {
+              const num = typeof v === 'number' && !isNaN(v) ? v : 0;
+              return <span className="font-mono">{num > 0 ? num.toLocaleString("id-ID") : "-"}</span>;
+            }
+          },
+          { 
+            key: "credit", 
+            label: "Kredit (Rp)", 
+            width: "130px", 
+            align: "right",
+            render: (v: number | undefined) => {
+              const num = typeof v === 'number' && !isNaN(v) ? v : 0;
+              return <span className="font-mono">{num > 0 ? num.toLocaleString("id-ID") : "-"}</span>;
+            }
+          }
+        ],
+        rows: trialBalance,
+        summaryItems: [
+          { label: "Total Saldo Debit", value: totalTbDebit, color: "blue" },
+          { label: "Total Saldo Kredit", value: totalTbCredit, color: "indigo" },
+          { label: "Kondisi Neraca Saldo", value: isTbBalanced ? "SEIMBANG (OK)" : "SELISIH", color: isTbBalanced ? "emerald" : "rose", highlight: true }
+        ],
+        grandTotalLabel: "TOTAL NERACA SALDO SEIMBANG:",
+        grandTotalValue: totalTbDebit,
+        notes: [
+          "Neraca Saldo memastikan total saldo debit dan kredit buku besar seimbang sebelum penutupan buku.",
+          isTbBalanced ? "Seluruh mutasi debit dan kredit dalam kondisi seimbang sempurna." : "Terdapat selisih pada mutasi debit dan kredit, silakan tinjau kembali jurnal transaksi."
+        ],
+        signatures: commonSignatures
+      };
+    }
+
+    // Default: Laba Rugi
+    const operatingExpenses = CHART_OF_ACCOUNTS.filter(a => a.id >= 6000 && a.id <= 6999).map((acc) => {
+      const balanceItem = trialBalance.find(t => t.accountId === acc.id);
+      const amountVal = balanceItem ? (balanceItem.debit - balanceItem.credit) : 0;
+      return {
+        code: String(acc.id),
+        name: acc.name,
+        type: "Beban Operasional",
+        amount: Math.max(0, amountVal)
+      };
+    }).filter(it => it.amount > 0);
+
+    const incomeRows = [
+      { code: "4001", name: "Pendapatan Penjualan Bersih", type: "Pendapatan Usaha", amount: activeStats.revenue || 0 },
+      { code: "5001", name: "Harga Pokok Penjualan (HPP)", type: "Beban Pokok", amount: activeStats.hpp || 0 },
+      ...operatingExpenses
+    ];
+
+    return {
+      title: "LAPORAN LABA RUGI (INCOME STATEMENT)",
+      subtitle: "Standar Akuntansi Keuangan Entitas Mikro, Kecil, dan Menengah (SAK EMKM)",
+      period: `Periode: ${periodLabel}`,
+      storeConfig,
+      columns: [
+        { key: "code", label: "Kode", width: "75px", align: "center" },
+        { key: "name", label: "Uraian Akun Pendapatan & Beban" },
+        { key: "type", label: "Klasifikasi", width: "140px", align: "center" },
+        { 
+          key: "amount", 
+          label: "Jumlah (Rp)", 
+          width: "150px", 
+          align: "right",
+          render: (v: number | undefined) => {
+            const num = typeof v === 'number' && !isNaN(v) ? v : 0;
+            return <span className="font-mono font-bold text-slate-900">{num.toLocaleString("id-ID")}</span>;
+          }
+        }
+      ],
+      rows: incomeRows,
+      summaryItems: [
+        { label: "Total Pendapatan", value: activeStats.revenue || 0, color: "blue" },
+        { label: "Beban Pokok (HPP)", value: activeStats.hpp || 0, color: "rose" },
+        { label: "Laba Kotor", value: activeStats.grossProfit || 0, color: "indigo" },
+        { label: "Beban Operasional", value: activeStats.expenses || 0, color: "rose" },
+        { label: "Laba Bersih Usaha", value: activeStats.netProfit || 0, color: (activeStats.netProfit || 0) >= 0 ? "emerald" : "rose", highlight: true }
+      ],
+      grandTotalLabel: "LABA (RUGI) BERSIH TAHUN BERJALAN:",
+      grandTotalValue: activeStats.netProfit || 0,
+      notes: [
+        "Laporan Laba Rugi disusun berdasarkan metode akrual penuh sesuai ketentuan SAK EMKM.",
+        `Estimasi PPh Final UMKM 0,5% (${formatIDR(activeStats.pph || 0)}) disesuaikan dengan ketentuan UU HPP.`
+      ],
+      signatures: commonSignatures
+    };
+  };
+
+  // Memoized guaranteed-valid ReportData for currently active report
+  const activeReportData = useMemo(() => {
+    return generateA4ReportData(activeReport);
+  }, [
+    activeReport, 
+    activeStats, 
+    trialBalance, 
+    receiptsFromCustomers, 
+    paymentsForStock, 
+    paymentsForExpenses, 
+    netCashFromOperations, 
+    capitalInjections, 
+    drawingsPaid, 
+    netCashFromFinancing, 
+    netIncreaseDecreaseInCash, 
+    finalCash, 
+    storeConfig, 
+    filterMode, 
+    selectedYear, 
+    selectedMonth, 
+    customStartDate, 
+    customEndDate
+  ]);
+
+  // Triggers dedicated PrintTemplate in modal preview mode
   const handlePrint = () => {
-    window.print();
+    setShowA4PrintModal(true);
   };
 
   const handleExcelExport = () => {
@@ -333,13 +636,30 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           <Printer className="w-4 h-4 text-slate-900 shrink-0" />
           <span><strong>Siap Cetak / Unduh PDF:</strong> Format A4 resmi dengan Kop Surat usaha, tabel akun, dan kolom tanda tangan ({getPeriodLabel()}).</span>
         </div>
-        <button
-          onClick={handlePrint}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold transition cursor-pointer shadow-xs whitespace-nowrap"
-        >
-          <Printer className="w-3.5 h-3.5" />
-          Cetak Dokumen Ini
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setDisplayMode(prev => prev === 'print-sheet' ? 'standard' : 'print-sheet')}
+            className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg font-bold transition cursor-pointer border text-xs ${
+              displayMode === 'print-sheet'
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-white hover:bg-indigo-50 text-indigo-900 border-indigo-200 shadow-2xs'
+            }`}
+            title="Beralih ke tampilan Lembar Cetak Dokumen A4 langsung di halaman"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>{displayMode === 'print-sheet' ? 'Tampilan Ringkas' : 'Mode Cetak Dokumen (A4)'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold transition cursor-pointer shadow-xs whitespace-nowrap active:scale-95 text-xs"
+            title="Buka Pratinjau Modal Cetak & Unduh PDF"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Cetak Dokumen Ini</span>
+          </button>
+        </div>
       </div>
 
       {/* OFFICIAL KOP SURAT HEADER */}
@@ -388,29 +708,29 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
   );
 
   const ReportSignature = () => (
-    <div className="hidden print:grid grid-cols-2 gap-12 mt-12 pt-8 border-t border-slate-200">
-      <div className="text-center space-y-16">
+    <div className="grid grid-cols-2 gap-8 sm:gap-16 mt-10 pt-8 border-t-2 border-slate-300 print:mt-8 print:pt-6">
+      <div className="text-center space-y-12">
         <div className="space-y-1">
-          <p className="text-xs font-semibold text-slate-500 font-sans">Disetujui Oleh,</p>
-          <p className="text-[10px] text-slate-400 font-mono">Pimpinan / Pemilik Usaha</p>
+          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider font-sans">Dibuat Oleh,</p>
+          <p className="text-[11px] text-slate-500 font-mono">Petugas Keuangan / Staf Akuntansi</p>
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-800 underline font-sans">
-            {storeConfig?.storeName ? `Pimpinan ${storeConfig.storeName}` : "(................................................)"}
+          <p className="text-xs font-bold text-slate-900 underline font-sans">Staf Akuntansi SAK EMKM</p>
+          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+            Tgl: {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
-          <p className="text-[9px] text-slate-400 font-mono">Kota {storeConfig?.storeCity || "Indonesia"}</p>
         </div>
       </div>
-      <div className="text-center space-y-16 col-start-2">
+      <div className="text-center space-y-12">
         <div className="space-y-1">
-          <p className="text-xs font-semibold text-slate-500 font-sans">Dibuat Oleh,</p>
-          <p className="text-[10px] text-slate-450 font-mono">Petugas Keuangan / Akuntan</p>
+          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider font-sans">Mengetahui &amp; Disetujui Oleh,</p>
+          <p className="text-[11px] text-slate-500 font-mono">Pimpinan / Pemilik Usaha</p>
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-800 underline font-sans">Bagian Akuntansi</p>
-          <p className="text-[9px] text-slate-400 font-mono">
-            Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          <p className="text-xs font-bold text-slate-900 underline font-sans">
+            {storeConfig?.storeName ? `Pimpinan ${storeConfig.storeName}` : "Pimpinan Usaha"}
           </p>
+          <p className="text-[10px] text-slate-500 font-mono mt-0.5">{storeConfig?.storeCity || "Indonesia"}</p>
         </div>
       </div>
     </div>
@@ -734,7 +1054,33 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
         </div>
 
         {/* Quick action buttons */}
-        <div className="flex flex-wrap gap-2 font-semibold">
+        <div className="flex flex-wrap items-center gap-2 font-semibold">
+          {/* Mode Cetak Dokumen (A4) / Tampilan Ringkas Toggle */}
+          {activeReport !== 'import' && activeReport !== 'ekspor' && (
+            <button
+              type="button"
+              onClick={() => setDisplayMode(prev => prev === 'print-sheet' ? 'standard' : 'print-sheet')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer border shadow-xs ${
+                displayMode === 'print-sheet'
+                  ? 'bg-indigo-700 text-white border-indigo-700'
+                  : 'bg-white hover:bg-indigo-50 text-indigo-900 border-indigo-200'
+              }`}
+              title="Beralih antara Tampilan Ringkas dan Mode Cetak Dokumen Format A4 SAK EMKM"
+            >
+              {displayMode === 'print-sheet' ? (
+                <>
+                  <LayoutList className="w-3.5 h-3.5" />
+                  <span>Tampilan Ringkas</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Mode Cetak Dokumen (A4)</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setActiveReport('import')}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
@@ -758,7 +1104,7 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
             title="Cetak Laporan ke Printer atau Simpan sebagai Dokumen PDF"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -1043,8 +1389,51 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
         </div>
       ) : activeReport !== 'import' && (
         <div className="print:p-0">
-          {/* LABA RUGI SHEET VIEW */}
-          {activeReport === 'labarugi' && (
+          {/* MODE CETAK DOKUMEN (A4 PRESISI SAK EMKM) IN-PAGE PREVIEW */}
+          {displayMode === 'print-sheet' && activeReport !== 'ekspor' && activeReportData ? (
+            <div className="space-y-4">
+              <div className="no-print bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5 text-indigo-950">
+                  <span className="p-2 bg-indigo-600 text-white rounded-xl">
+                    <FileText className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <p className="font-bold text-sm">Mode Cetak Dokumen Aktif (Layout Presisi A4 SAK EMKM)</p>
+                    <p className="text-indigo-800 text-[11px]">
+                      Menampilkan tata letak A4 resmi lengkap dengan Kop Surat usaha, tabel akun bergaris standar akuntansi, catatan kepatuhan, dan kolom tanda tangan.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode('standard')}
+                    className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg font-bold border border-indigo-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <LayoutList className="w-3.5 h-3.5" />
+                    <span>Kembali ke Tampilan Ringkas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Pratinjau / Unduh PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              <PrintTemplate
+                mode="embedded"
+                data={activeReportData}
+                onPrint={triggerPrintA4}
+              />
+            </div>
+          ) : (
+            <>
+              {/* LABA RUGI SHEET VIEW */}
+              {activeReport === 'labarugi' && (
             <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-xs space-y-6 printable-area">
               <ReportHeader
                 title="LAPORAN LABA RUGI (INCOME STATEMENT)"
@@ -1467,9 +1856,11 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               <ReportSignature />
             </div>
           )}
+        </>
+      )}
 
-          {/* EXCEL EXPORT TAB */}
-          {activeReport === 'ekspor' && (
+      {/* EXCEL EXPORT TAB */}
+      {activeReport === 'ekspor' && (
             <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm space-y-6">
               <div className="text-center max-w-lg mx-auto space-y-3 py-6">
                 <FileCode className="w-16 h-16 text-teal-600 mx-auto" />
@@ -1542,6 +1933,25 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* MODAL CETAK STANDAR SAK EMKM & UNDUH PDF */}
+      <UniversalPrintModal
+        isOpen={printModalData.isOpen}
+        onClose={() => setPrintModalData(prev => ({ ...prev, isOpen: false }))}
+        title={printModalData.title}
+        filename={printModalData.filename}
+        htmlContent={printModalData.html}
+      />
+
+      {/* DEDICATED A4 PRINTTEMPLATE COMPONENT (KOP USAHA, TABEL RAPI & TANDA TANGAN) */}
+      {showA4PrintModal && activeReportData && (
+        <PrintTemplate
+          mode="modal"
+          isOpen={showA4PrintModal}
+          onClose={() => setShowA4PrintModal(false)}
+          data={activeReportData}
+        />
       )}
     </div>
   );

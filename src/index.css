@@ -8,38 +8,137 @@
 }
 
 @layer utilities {
+  .print-only {
+    display: none;
+  }
+
   @media print {
     @page {
-      margin: 12mm 15mm;
-      size: auto;
+      margin: 8mm 10mm;
+      size: A4 portrait;
     }
 
     * {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      color-adjust: exact !important;
     }
 
-    /* Hide absolute screen clutter */
+    .print-only {
+      display: block !important;
+    }
+
+    /* Reset all sidebar left padding on main container when printing */
+    div[class*="lg:pl-"],
+    div[class*="pl-"] {
+      padding-left: 0 !important;
+    }
+
+    /* When body has printing-mode active, hide entire React root and show only universal print container */
+    body.printing-mode > #root {
+      display: none !important;
+    }
+
+    body.printing-mode #universal-print-container {
+      display: block !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      z-index: 9999999 !important;
+    }
+
+    /* Hide UI navigation, sidebars, buttons, banners when regular page is printed */
     header, 
     nav, 
+    aside, 
     footer, 
-    button, 
     .no-print, 
-    #bento-ai, 
-    #tax-banner, 
     .no-print-element,
-    form,
-    aside {
+    #bento-ai, 
+    #tax-banner,
+    #sidebar-nav,
+    #header-search-container {
       display: none !important;
+    }
+
+    button:not(.allow-print) {
+      display: none !important;
+    }
+
+    /* Isolate modal if printing from modal preview */
+    body:has(.print-template-modal-overlay) main > section > *:not(:has(.print-template-modal-overlay)),
+    body:has(.print-modal-overlay) main > section > *:not(:has(.print-modal-overlay)) {
+      display: none !important;
+    }
+
+    body:has(.print-template-modal-overlay) .printable-area:not(.print-template-modal-overlay .printable-area),
+    body:has(.print-modal-overlay) .printable-area:not(.print-modal-overlay .printable-area) {
+      display: none !important;
+    }
+
+    /* PrintTemplate Modal Overlay Unwrap */
+    .print-template-modal-overlay,
+    .print-modal-overlay {
+      position: static !important;
+      background: transparent !important;
+      backdrop-filter: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      inset: auto !important;
+      display: block !important;
+      z-index: auto !important;
+    }
+
+    .print-template-modal-box,
+    .print-modal-box {
+      border: none !important;
+      box-shadow: none !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      border-radius: 0 !important;
+      overflow: visible !important;
+      max-height: none !important;
+      height: auto !important;
+    }
+
+    .print-template-modal-box > div,
+    .print-template-modal-box .bg-slate-800\/50,
+    .print-modal-box > div {
+      background: transparent !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      max-height: none !important;
+      height: auto !important;
+    }
+
+    /* Reset transform scale on print so 100% true A4 prints without zoom distortion */
+    .a4-print-sheet {
+      transform: none !important;
+      max-width: 100% !important;
+      min-height: auto !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
     }
     
     /* Re-structure container page margins for maximum layout expansion */
     body {
-      background: white !important;
+      background: #ffffff !important;
       color: #0f172a !important;
       padding: 0 !important;
       margin: 0 !important;
-      font-size: 11pt !important;
+      font-size: 10pt !important;
     }
 
     main, .max-w-7xl {
@@ -55,30 +154,91 @@
       max-height: 250px !important;
     }
 
-    /* Print card wrapper properties */
-    .printable-area, .print-card-wrapper {
+    /* Print card wrapper & A4 sheet properties */
+    .printable-area, 
+    .print-card-wrapper, 
+    .printable-document,
+    .a4-print-sheet,
+    .print-template-container {
       border: none !important;
       box-shadow: none !important;
-      background: transparent !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
       padding: 0 !important;
       margin: 0 !important;
       width: 100% !important;
+      max-width: 100% !important;
     }
 
+    /* PrintTemplate Modal Overlay Unwrap */
+    .print-template-modal-overlay,
+    .print-modal-overlay {
+      position: static !important;
+      background: transparent !important;
+      backdrop-filter: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      inset: auto !important;
+      display: block !important;
+      z-index: auto !important;
+    }
+
+    .print-template-modal-box,
+    .print-modal-box {
+      border: none !important;
+      box-shadow: none !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      border-radius: 0 !important;
+    }
+
+    /* Page-break avoidance for critical report blocks */
+    .report-header-block {
+      page-break-inside: avoid !important;
+      page-break-after: auto;
+    }
+
+    .signature-block,
+    .report-signature-block {
+      page-break-inside: avoid !important;
+      page-break-before: auto;
+      margin-top: 24pt !important;
+    }
+
+    .report-footer-block {
+      page-break-inside: avoid !important;
+    }
+
+    /* Strict A4 Table Formatting */
     table {
       page-break-inside: auto;
       width: 100% !important;
       border-collapse: collapse !important;
     }
+
     tr {
-      page-break-inside: avoid;
+      page-break-inside: avoid !important;
       page-break-after: auto;
     }
-    thead {
-      display: table-header-group;
+
+    th {
+      background-color: #f1f5f9 !important;
+      color: #0f172a !important;
+      font-weight: 700 !important;
     }
+
+    thead {
+      display: table-header-group !important;
+    }
+
     tfoot {
-      display: table-footer-group;
+      display: table-footer-group !important;
     }
   }
 }

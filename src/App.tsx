@@ -15,7 +15,16 @@ import {
   User as UserIcon,
   Sparkles,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Menu,
+  Search,
+  PlusCircle,
+  ChevronRight,
+  PanelLeft,
+  Store,
+  X,
+  ShieldCheck,
+  KeyRound
 } from "lucide-react";
 import { Transaction, StockItem, FinancialStats, StoreConfig, UserAccount } from "./types";
 import { 
@@ -25,6 +34,7 @@ import {
 } from "./utils/accountingEngine";
 
 // Import modules
+import { SidebarNav } from "./components/SidebarNav";
 import { FinanceDashboard } from "./components/FinanceDashboard";
 import { TransactionFormAndJournal } from "./components/TransactionFormAndJournal";
 import { StockManager } from "./components/StockManager";
@@ -35,14 +45,102 @@ import { StoreSettings, DEFAULT_STORE_CONFIG, BUSINESS_TYPE_PRESETS } from "./co
 import { CloudSync } from "./components/CloudSync";
 import { AccountDocumentation } from "./components/AccountDocumentation";
 import { LandingPage } from "./components/LandingPage";
+import { ActivationModal } from "./components/ActivationModal";
 import { getCurrentUser, logoutUser } from "./utils/authService";
+import { getActiveLicense, LicenseData } from "./utils/licenseManager";
+
+const TAB_CONFIG: Record<string, { title: string; subtitle: string }> = {
+  dashboard: { title: "Ringkasan Toko", subtitle: "Executive Dashboard & Posisi Finansial SAK EMKM" },
+  transaksi: { title: "Jurnal & Transaksi", subtitle: "Pencatatan Mutasi Kas & Entri SAK EMKM" },
+  stok: { title: "Stok Barang (HPP)", subtitle: "Manajemen Persediaan & Biaya Pokok Penjualan" },
+  laporan: { title: "Laporan Keuangan", subtitle: "Laba Rugi, Neraca, Arus Kas & Ekspor Excel" },
+  pajak: { title: "Perpajakan UMKM", subtitle: "Kalkulator PPh Final 0.5% (PP 23) & PPN" },
+  dokumen: { title: "Bagan Akun (COA)", subtitle: "Daftar Kode Akun Standar SAK EMKM" },
+  asisten: { title: "Tanya Akuntan AI ✨", subtitle: "Asisten Cerdas & Audit Kesehatan Bisnis" },
+  pengaturan: { title: "Profil Toko & Cadangan", subtitle: "Informasi Usaha, NPWP & Cloud Sync" },
+};
+
+export const getPageDetails = (tab: string, subFilter?: string): { title: string; subtitle: string; parentTitle?: string } => {
+  if (tab === "transaksi") {
+    if (subFilter === "invoice") {
+      return { title: "Tagihan", subtitle: "Daftar tagihan penjualan, detil faktur INV, ekspedisi & penerimaan pembayaran kas", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "jurnal") {
+      return { title: "Buku Jurnal Umum", subtitle: "Daftar Entri Jurnal Double-Entry Berpasangan Standar SAK EMKM", parentTitle: "Jurnal & Transaksi" };
+    }
+    if (subFilter === "mutasi") {
+      return { title: "Buku Kas & Mutasi", subtitle: "Riwayat Arus Kas Masuk & Kas Keluar Lengkap", parentTitle: "Jurnal & Transaksi" };
+    }
+    if (subFilter === "bukubesar") {
+      return { title: "Buku Besar per Akun", subtitle: "Buku Besar Pembantu & Mutasi Saldo Kode Akun SAK EMKM", parentTitle: "Jurnal & Transaksi" };
+    }
+    return { title: "Catat Transaksi Baru", subtitle: "Input Transaksi Kas, Penjualan & Beban Operasional", parentTitle: "Jurnal & Transaksi" };
+  }
+  if (tab === "stok") {
+    if (subFilter === "tambah") {
+      return { title: "Tambah Produk Baru", subtitle: "Pendaftaran Item Barang Dagang & Penetapan HPP Awal", parentTitle: "Stok Barang (HPP)" };
+    }
+    if (subFilter === "hpp") {
+      return { title: "Rekalkulasi HPP Rata-Rata", subtitle: "Perhitungan Moving Average Harga Pokok Penjualan SAK EMKM", parentTitle: "Stok Barang (HPP)" };
+    }
+    return { title: "Katalog & Saldo Stok Barang", subtitle: "Daftar Produk, SKU, Harga Jual & Kuantitas Persediaan", parentTitle: "Stok Barang (HPP)" };
+  }
+  if (tab === "laporan") {
+    if (subFilter === "neraca") {
+      return { title: "Laporan Posisi Keuangan (Neraca)", subtitle: "Aset Lancar, Aset Tetap, Liabilitas & Ekuitas Pemilik", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "aruskas") {
+      return { title: "Laporan Arus Kas", subtitle: "Aktivitas Operasional, Investasi & Pendanaan Toko", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "neracasaldo") {
+      return { title: "Neraca Saldo (Trial Balance)", subtitle: "Verifikasi Keseimbangan Saldo Debit & Kredit Seluruh Kode Akun", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "ekspor") {
+      return { title: "Unduh File Excel (.xlsx)", subtitle: "Ekspor Seluruh Laporan Keuangan ke Microsoft Excel", parentTitle: "Laporan Keuangan" };
+    }
+    return { title: "Laporan Laba Rugi", subtitle: "Pendapatan, HPP, Beban Usaha & Perhitungan Laba Bersih", parentTitle: "Laporan Keuangan" };
+  }
+  if (tab === "pajak") {
+    if (subFilter === "ppn") {
+      return { title: "Kalkulator PPN 11%", subtitle: "Simulasi Perhitungan PPN Faktur Penjualan & Pembelian", parentTitle: "Perpajakan UMKM" };
+    }
+    return { title: "Simulasi PPh Final 0.5% (PP 23)", subtitle: "Pajak Penghasilan UMKM & Plafon Rp 500 Juta Bebas Pajak (UU HPP)", parentTitle: "Perpajakan UMKM" };
+  }
+  if (tab === "dokumen") {
+    if (subFilter === "pedoman") {
+      return { title: "Pedoman Standar SAK EMKM", subtitle: "Standar Akuntansi Keuangan Entitas Mikro Kecil Menengah", parentTitle: "Bagan Akun (COA)" };
+    }
+    return { title: "Daftar Kode Akun (COA)", subtitle: "Bagan Akun Standar SAK EMKM 1001-6008 & Aturan Debit/Kredit", parentTitle: "Bagan Akun (COA)" };
+  }
+  if (tab === "asisten") {
+    if (subFilter === "audit") {
+      return { title: "Audit & Diagnosa Kesehatan Usaha", subtitle: "Evaluasi Rasio Margin, Likuiditas & Beban Usaha AI", parentTitle: "Asisten AI" };
+    }
+    return { title: "Tanya Akuntan AI ✨", subtitle: "Konsultasi Interaktif Solusi Pembukuan & Aturan Pajak", parentTitle: "Asisten AI" };
+  }
+  if (tab === "pengaturan") {
+    if (subFilter === "sync") {
+      return { title: "Cadangkan & Cloud Sync", subtitle: "Ekspor & Impor Database Pembukuan Lokal JSON", parentTitle: "Profil & Pengaturan" };
+    }
+    return { title: "Profil & Informasi Usaha", subtitle: "Nama Usaha, Kota, Alamat, NPWP & Bidang Usaha", parentTitle: "Profil & Pengaturan" };
+  }
+  return { title: "Ringkasan Toko", subtitle: "Executive Dashboard & Posisi Finansial SAK EMKM" };
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [activeSubFilter, setActiveSubFilter] = useState<string | undefined>(undefined);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [navbarSearchQuery, setNavbarSearchQuery] = useState<string>("");
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
   const [landingInitialMode, setLandingInitialMode] = useState<"login" | "register" | "demo">("login");
   const [welcomeBanner, setWelcomeBanner] = useState<string | null>(null);
+
+  // Hardware License & Anti-Piracy States
+  const [activeLicense, setActiveLicense] = useState<LicenseData | null>(null);
+  const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
 
   // Local storage state keys
   const LOCAL_STORAGE_TX_KEY = "akuntan_ai_transactions_v1";
@@ -56,6 +154,14 @@ export default function App() {
 
   // 1. Initial State Loading from LocalStorage on mount
   useEffect(() => {
+    // Check Hardware Machine License first
+    const lic = getActiveLicense();
+    setActiveLicense(lic);
+    if (!lic) {
+      // If machine is not yet activated, open Activation Modal
+      setShowActivationModal(true);
+    }
+
     // Check active user session
     const activeSession = getCurrentUser();
     if (activeSession) {
@@ -428,41 +534,60 @@ export default function App() {
   // User cannot touch or tamper with the main accounting workspace before logging in or entering demo mode
   if (showLandingPage || !currentUser) {
     return (
-      <LandingPage 
-        onLoginSuccess={handleLoginSuccess} 
-        initialAuthMode={landingInitialMode}
-      />
+      <>
+        <LandingPage 
+          onLoginSuccess={handleLoginSuccess} 
+          initialAuthMode={landingInitialMode}
+          onOpenActivationModal={() => setShowActivationModal(true)}
+          isActivated={!!activeLicense}
+        />
+        <ActivationModal
+          isOpen={showActivationModal}
+          onClose={() => setShowActivationModal(false)}
+          onActivationSuccess={(lic) => {
+            setActiveLicense(lic);
+            setShowActivationModal(false);
+            setWelcomeBanner(`Perangkat berhasil diaktivasi! Lisensi ${lic.licenseType === 'lifetime' ? 'Seumur Hidup' : lic.licenseType === 'annual' ? 'Tahunan' : 'Trial'} aktif untuk ${lic.ownerName}.`);
+          }}
+          allowDismiss={true}
+        />
+      </>
     );
   }
 
+  const pageInfo = getPageDetails(activeTab, activeSubFilter);
+  const lowStockCount = stockItems.filter(item => item.stock < 10).length;
+  const isNeracaBalanced = Math.abs(stats.totalAssets - (stats.totalLiabilities + stats.totalEquity)) < 1;
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans" id="applet-container">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans relative" id="applet-container">
+      
       {/* 1. Sticky Demo Mode Notice Banner */}
       {currentUser?.isDemo && (
-        <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-emerald-700 text-white px-4 md:px-12 py-2.5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs z-50">
+        <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-emerald-700 text-white px-4 md:px-8 py-2 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs z-30 sticky top-0">
           <div className="flex items-center gap-2.5">
-            <span className="p-1.5 bg-black/20 rounded-lg shrink-0">
-              <Sparkles className="w-4 h-4 text-amber-200" />
+            <span className="p-1 bg-black/20 rounded-md shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-amber-200" />
             </span>
             <div>
-              <p className="font-extrabold tracking-wide flex items-center gap-1.5">
-                <span>Mode Akun Demo — Hanya untuk Mengetahui &amp; Tinjauan Fitur SAK EMKM</span>
+              <p className="font-extrabold tracking-wide flex items-center gap-1.5 leading-tight">
+                <span>Mode Akun Demo — Tinjauan & Uji Coba Fitur Pembukuan SAK EMKM</span>
               </p>
               <p className="text-[11px] text-amber-100/90 leading-tight">
-                Anda sedang mencoba data simulasi toko <strong>{storeConfig.storeName}</strong>. Seluruh mutasi, stok, dan laporan bebas diuji coba.
+                Anda mencoba simulasi toko <strong>{storeConfig.storeName}</strong> ({storeConfig.storeType} · {storeConfig.storeCity}).
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => handleLogout("register")}
-              className="px-3.5 py-1.5 bg-white text-slate-950 hover:bg-amber-50 rounded-xl font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+              className="px-3 py-1 bg-white text-slate-950 hover:bg-amber-50 rounded-lg font-bold text-xs shadow-xs transition cursor-pointer"
             >
-              <span>✨ Daftar Toko Anda Sendiri</span>
+              ✨ Buat Toko Baru
             </button>
             <button
               onClick={() => handleLogout("login")}
-              className="px-3 py-1.5 bg-black/25 hover:bg-black/35 text-white rounded-xl text-xs font-bold transition cursor-pointer border border-white/20"
+              className="px-2.5 py-1 bg-black/25 hover:bg-black/35 text-white rounded-lg text-xs font-semibold transition cursor-pointer border border-white/20"
             >
               Keluar Demo
             </button>
@@ -472,7 +597,7 @@ export default function App() {
 
       {/* 2. Welcome notification banner */}
       {welcomeBanner && (
-        <div className="bg-indigo-50/95 border-b border-indigo-100 px-4 md:px-12 py-2.5 text-xs text-indigo-950 flex items-center justify-between gap-3">
+        <div className="bg-indigo-50 border-b border-indigo-100 px-4 md:px-8 py-2 text-xs text-indigo-950 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span className="font-semibold">{welcomeBanner}</span>
@@ -487,273 +612,385 @@ export default function App() {
         </div>
       )}
 
-      {/* Dynamic Header */}
-      <header className="bg-white border-b border-slate-100 py-4 px-6 md:px-12 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-900 text-white p-2.5 rounded-xl flex items-center justify-center shadow-xs">
-              <Coins className="w-6 h-6 text-emerald-400" />
-            </div>
-            <div>
-              <h1 className="text-lg font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
-                AKUNTAN AI <span className="text-[10px] bg-slate-150 border text-slate-600 px-2 py-0.5 rounded-full font-bold">V1.0</span>
-              </h1>
-              <p className="text-[11px] text-slate-400 font-medium leading-none mt-1">Pembukuan Pintar <strong>{storeConfig.storeName}</strong> ({storeConfig.storeCity}) — SAK EMKM</p>
-            </div>
-          </div>
+      {/* 3. Modern Cloud Accounting Layout: Left Sidebar + Right Workspace */}
+      <div className="flex min-h-screen">
+        
+        {/* Left Sidebar Navigation (Kledo / Modern SaaS Style with Prominent Search) */}
+        <SidebarNav
+          activeTab={activeTab}
+          activeSubFilter={activeSubFilter}
+          onSelectTab={(tabId, subFilter) => {
+            setActiveTab(tabId);
+            setActiveSubFilter(subFilter);
+          }}
+          storeConfig={storeConfig}
+          currentUser={currentUser}
+          onLogout={() => handleLogout("login")}
+          onOpenLanding={() => {
+            setLandingInitialMode(currentUser?.isDemo ? "demo" : "login");
+            setShowLandingPage(true);
+          }}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          transactionCount={transactions.length}
+          stockCount={stockItems.length}
+          lowStockCount={lowStockCount}
+          isBalanced={isNeracaBalanced}
+          searchQuery={navbarSearchQuery}
+          onSearchChange={setNavbarSearchQuery}
+          onOpenActivationModal={() => setShowActivationModal(true)}
+          isActivated={!!activeLicense}
+        />
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Store Type Quick Jump */}
-            <span 
-              onClick={() => setActiveTab("pengaturan")}
-              className="hidden lg:inline-flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer transition"
-              title="Klik untuk mengubah profil &amp; informasi toko"
-            >
-              <Wallet className="w-3.5 h-3.5 text-slate-500" />
-              <span>{storeConfig.storeType} ({storeConfig.storeCity}) ⚙️</span>
-            </span>
+        {/* Right Main Application Area */}
+        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          isSidebarCollapsed ? "lg:pl-20" : "lg:pl-68"
+        }`}>
+          
+          {/* Top Application Header Bar */}
+          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 md:px-8 py-3 shadow-2xs space-y-3">
+            
+            {/* ROW 1: Informasi Toko Sembako Berkah Mandiri & Status Usaha */}
+            <div className="flex items-center justify-between gap-4 pb-2.5 border-b border-slate-100">
+              
+              {/* Left: Mobile Toggle + Store Identity & Breadcrumbs */}
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setIsMobileSidebarOpen(true)}
+                  className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  title="Buka Menu Navigasi"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
 
-            {/* Active Logged-in User Info */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
-              <div className="w-6 h-6 rounded-full bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-[10px]">
-                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                {/* Informasi Toko Sembako Berkah Mandiri Badge */}
+                <div 
+                  onClick={() => {
+                    setActiveTab("pengaturan");
+                    setActiveSubFilter("profil");
+                  }}
+                  className="flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer shrink-0"
+                  title="Klik untuk membuka informasi toko & profil usaha"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <Store className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-xs font-bold text-slate-900 truncate">
+                        {storeConfig.storeName || "Toko Sembako Berkah Mandiri"}
+                      </h2>
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded font-mono">
+                        SAK EMKM
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 truncate">
+                      {storeConfig.storeType} &bull; {storeConfig.storeCity}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Breadcrumbs Navigation */}
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 min-w-0 pl-2 border-l border-slate-200">
+                  {pageInfo.parentTitle && (
+                    <>
+                      <span 
+                        className="hover:text-slate-600 transition cursor-pointer truncate max-w-[130px]"
+                        onClick={() => {
+                          setActiveTab(activeTab);
+                          setActiveSubFilter(undefined);
+                        }}
+                      >
+                        {pageInfo.parentTitle}
+                      </span>
+                      <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
+                    </>
+                  )}
+                  <span className="text-slate-800 font-bold truncate max-w-[180px]">
+                    {pageInfo.title}
+                  </span>
+                </div>
               </div>
-              <div className="text-left">
-                <div className="flex items-center gap-1.5">
-                  <p className="font-bold text-slate-800 leading-tight truncate max-w-[120px]">
-                    {currentUser?.name || "Budi Santoso"}
-                  </p>
-                  {currentUser?.isDemo && (
-                    <span className="text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded-md">
-                      Demo
-                    </span>
+
+              {/* Right: Kepatuhan Standar & Indikator Neraca */}
+              <div className="hidden md:flex items-center gap-2.5 shrink-0">
+                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Neraca {isNeracaBalanced ? "Seimbang" : "Aktif"}
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Tahun Buku 2026
+                </span>
+              </div>
+
+            </div>
+
+            {/* ROW 2 (DIBAWAH INFORMASI TOKO): Mode Pencarian, Buat Transaksi, Lisensi Hardware, Profil dan Pengaturan Usaha, Lihat Landing Page */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              
+              {/* Mode Pencarian */}
+              <div className="flex-1 min-w-[220px] max-w-md relative" id="header-search-container">
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={navbarSearchQuery}
+                    onChange={(e) => setNavbarSearchQuery(e.target.value)}
+                    placeholder="Cari menu, fitur, laporan, jurnal... (Ctrl+K)"
+                    className="w-full bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-800 text-xs pl-9 pr-14 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  />
+                  {navbarSearchQuery ? (
+                    <button
+                      onClick={() => setNavbarSearchQuery("")}
+                      className="absolute right-3 p-0.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <kbd className="hidden sm:inline-block absolute right-2.5 text-[10px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs pointer-events-none">
+                      ⌘K
+                    </kbd>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 leading-tight capitalize">
-                  {currentUser?.isDemo ? "Hanya Tinjauan" : (currentUser?.role === "owner" ? "Pemilik Usaha" : "Akuntan Toko")}
-                </p>
               </div>
+
+              {/* Action Toolbar Group */}
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                
+                {/* 1. Buat Transaksi */}
+                <button
+                  onClick={() => {
+                    setActiveTab("transaksi");
+                    setActiveSubFilter("input");
+                  }}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer active:scale-95"
+                  title="Catat transaksi penjualan, pembelian, atau beban"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>+ Buat Transaksi</span>
+                </button>
+
+                {/* 2. Status Lisensi Hardware Anti-Pembajakan */}
+                <button
+                  onClick={() => setShowActivationModal(true)}
+                  className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition cursor-pointer shadow-2xs ${
+                    activeLicense 
+                      ? activeLicense.licenseType === "trial" 
+                        ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100" 
+                        : "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
+                      : "bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 animate-pulse"
+                  }`}
+                  title="Status Aktivasi & Serial Hardware Mesin Komputer"
+                >
+                  <KeyRound className={`w-3.5 h-3.5 ${activeLicense ? (activeLicense.licenseType === "trial" ? "text-amber-600" : "text-emerald-600") : "text-rose-600"}`} />
+                  <span className="hidden sm:inline">
+                    {activeLicense 
+                      ? `Lisensi: ${activeLicense.licenseType === "lifetime" ? "Seumur Hidup" : activeLicense.licenseType === "annual" ? "Tahunan" : "Trial 30 Hari"}`
+                      : "🔑 Aktivasi Hardware"}
+                  </span>
+                  <span className="sm:hidden">Lisensi</span>
+                </button>
+
+                {/* 3. Profil dan Pengaturan Usaha */}
+                <button
+                  onClick={() => {
+                    setActiveTab("pengaturan");
+                    setActiveSubFilter("profil");
+                  }}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition cursor-pointer ${
+                    activeTab === "pengaturan"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs"
+                  }`}
+                  title="Profil dan Pengaturan Usaha"
+                >
+                  <Settings className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="hidden sm:inline">Profil &amp; Pengaturan Usaha</span>
+                  <span className="sm:hidden">Pengaturan</span>
+                </button>
+
+                {/* 4. Lihat Landing Page & Brosur Fitur */}
+                <button
+                  onClick={() => {
+                    setLandingInitialMode(currentUser?.isDemo ? "demo" : "login");
+                    setShowLandingPage(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer shadow-2xs"
+                  title="Lihat Landing Page & Brosur Fitur"
+                >
+                  <Globe className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="hidden md:inline">Lihat Landing Page &amp; Brosur Fitur</span>
+                  <span className="md:hidden">Landing Page</span>
+                </button>
+
+                {/* 5. Profil User Account */}
+                <div 
+                  onClick={() => {
+                    setActiveTab("pengaturan");
+                    setActiveSubFilter("profil");
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-slate-50 transition cursor-pointer"
+                  title={`Profil Pengguna: ${currentUser?.name || "Budi Santoso"}`}
+                >
+                  <div className="w-6 h-6 rounded-lg bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-[11px] shadow-2xs">
+                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                  </div>
+                  <div className="hidden lg:block text-left">
+                    <span className="block text-[11px] font-bold text-slate-800 leading-tight">
+                      {currentUser?.name || "Budi Santoso"}
+                    </span>
+                    <span className="block text-[9px] text-slate-400 leading-none">
+                      Profil
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. Keluar dari akun */}
+                <button
+                  onClick={() => handleLogout("login")}
+                  className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
+                  title="Keluar dari akun"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-xs font-semibold">Keluar</span>
+                </button>
+
+              </div>
+
             </div>
 
-            {/* Back to Landing Page button */}
-            <button
-              onClick={() => {
-                setLandingInitialMode(currentUser?.isDemo ? "demo" : "login");
-                setShowLandingPage(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer"
-              title="Lihat Landing Page &amp; Brosur Fitur"
-            >
-              <Globe className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="hidden sm:inline">Landing Page</span>
-            </button>
+          </header>
 
-            {/* Logout button */}
-            <button
-              onClick={() => handleLogout("login")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
-              title="Keluar / Beralih Akun Toko"
-            >
-              <LogOut className="w-3.5 h-3.5 text-rose-600" />
-              <span>Keluar</span>
-            </button>
-          </div>
-        </div>
-      </header>
+          {/* Main Workspace Body Content */}
+          <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+            
+            {/* ROUTING VIEW MODULES */}
+            <section className="transition-all duration-300">
+              {activeTab === "dashboard" && (
+                <FinanceDashboard
+                  stats={stats}
+                  transactions={transactions}
+                  stockItems={stockItems}
+                  onLoadDemoData={handleLoadDemoData}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                  storeConfig={storeConfig}
+                />
+              )}
 
-      {/* Main Container Workspace */}
-      <main className="max-w-7xl mx-auto px-4 md:px-12 py-8 space-y-8">
-        
-        {/* Navigation Bar Selector */}
-        <nav className="flex overflow-x-auto gap-2 bg-white p-2 border border-slate-100 rounded-2xl shadow-xs" id="nav-tabs">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "dashboard" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            Ringkasan Toko (Dashboard)
-          </button>
-          
-          <button
-            onClick={() => setActiveTab("transaksi")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "transaksi" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            Jurnal &amp; Mutasi Kas
-          </button>
-          
-          <button
-            onClick={() => setActiveTab("stok")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "stok" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <Boxes className="w-4 h-4" />
-            Stok Barang (HPP)
-          </button>
+              {activeTab === "transaksi" && (
+                <TransactionFormAndJournal
+                  transactions={transactions}
+                  stockItems={stockItems}
+                  onAddTransaction={handleAddTransaction}
+                  onDeleteTransaction={handleDeleteTransaction}
+                  onClearTransactions={handleClearTransactions}
+                  storeConfig={storeConfig}
+                  initialSubTab={activeSubFilter as any}
+                  onSubTabChange={(newSubTab) => setActiveSubFilter(newSubTab)}
+                />
+              )}
 
-          <button
-            onClick={() => setActiveTab("laporan")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "laporan" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            Laporan Keuangan
-          </button>
+              {activeTab === "stok" && (
+                <StockManager
+                  stockItems={stockItems}
+                  onAddStockItem={handleAddStockItem}
+                  onDeleteStockItem={handleDeleteStockItem}
+                  initialView={activeSubFilter}
+                  storeConfig={storeConfig}
+                />
+              )}
 
-          <button
-            onClick={() => setActiveTab("pajak")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "pajak" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <Percent className="w-4 h-4" />
-            Perpajakan UMKM
-          </button>
+              {activeTab === "laporan" && (
+                <FinancialStatements
+                  stats={stats}
+                  transactions={transactions}
+                  stockItems={stockItems}
+                  journal={journalEntries}
+                  storeConfig={storeConfig}
+                  onImportTransactions={handleImportExcelData}
+                  initialReport={activeSubFilter as any}
+                />
+              )}
 
-          <button
-            onClick={() => setActiveTab("dokumen")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "dokumen" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <BookText className="w-4 h-4 text-amber-400" />
-            Dokumen
-          </button>
+              {activeTab === "pajak" && (
+                <TaxCalculator
+                  stats={stats}
+                  storeConfig={storeConfig}
+                  initialMode={activeSubFilter as any}
+                />
+              )}
 
-          <button
-            onClick={() => setActiveTab("asisten")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "asisten" 
-                ? "bg-violet-600 text-white shadow-xs" 
-                : "text-slate-500 hover:text-indigo-800 hover:bg-indigo-50/50"
-            }`}
-          >
-            <BrainCircuit className="w-4 h-4 text-emerald-400" />
-            Tanya Akuntan AI ✨
-          </button>
+              {activeTab === "dokumen" && (
+                <AccountDocumentation 
+                  storeConfig={storeConfig} 
+                  initialTab={activeSubFilter as any}
+                />
+              )}
 
-          <button
-            onClick={() => setActiveTab("pengaturan")}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === "pengaturan" 
-                ? "bg-slate-900 text-white shadow-xs" 
-                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-            }`}
-          >
-            <Settings className="w-4 h-4 text-indigo-400" />
-            Profil Toko Saya
-          </button>
-        </nav>
+              {activeTab === "asisten" && (
+                <AiAssistant
+                  stats={stats}
+                  transactions={transactions}
+                  stockItems={stockItems}
+                  storeConfig={storeConfig}
+                  initialMode={activeSubFilter}
+                />
+              )}
 
-        {/* ACTIVE MODULE VIEW SWITCH ROUTING */}
-        <section className="transition-all duration-300">
-          {activeTab === "dashboard" && (
-            <FinanceDashboard
-              stats={stats}
-              transactions={transactions}
-              stockItems={stockItems}
-              onLoadDemoData={handleLoadDemoData}
-              onNavigateToTab={setActiveTab}
-              storeConfig={storeConfig}
-            />
-          )}
+              {activeTab === "pengaturan" && (
+                <div className="space-y-6">
+                  <StoreSettings
+                    config={storeConfig}
+                    onSaveConfig={handleSaveStoreConfig}
+                    onLoadCustomDemoData={handleLoadCustomDemoData}
+                    onOpenActivationModal={() => setShowActivationModal(true)}
+                  />
+                  <CloudSync
+                    transactions={transactions}
+                    stockItems={stockItems}
+                    storeConfig={storeConfig}
+                    onSyncImport={handleSyncImport}
+                  />
+                </div>
+              )}
+            </section>
 
-          {activeTab === "transaksi" && (
-            <TransactionFormAndJournal
-              transactions={transactions}
-              stockItems={stockItems}
-              onAddTransaction={handleAddTransaction}
-              onDeleteTransaction={handleDeleteTransaction}
-              onClearTransactions={handleClearTransactions}
-              storeConfig={storeConfig}
-            />
-          )}
+          </main>
 
-          {activeTab === "stok" && (
-            <StockManager
-              stockItems={stockItems}
-              onAddStockItem={handleAddStockItem}
-              onDeleteStockItem={handleDeleteStockItem}
-            />
-          )}
-
-          {activeTab === "laporan" && (
-            <FinancialStatements
-              stats={stats}
-              transactions={transactions}
-              stockItems={stockItems}
-              journal={journalEntries}
-              storeConfig={storeConfig}
-              onImportTransactions={handleImportExcelData}
-            />
-          )}
-
-          {activeTab === "pajak" && (
-            <TaxCalculator
-              stats={stats}
-              storeConfig={storeConfig}
-            />
-          )}
-
-          {activeTab === "dokumen" && (
-            <AccountDocumentation storeConfig={storeConfig} />
-          )}
-
-          {activeTab === "asisten" && (
-            <AiAssistant
-              stats={stats}
-              transactions={transactions}
-              stockItems={stockItems}
-              storeConfig={storeConfig}
-            />
-          )}
-
-          {activeTab === "pengaturan" && (
-            <div className="space-y-6">
-              <StoreSettings
-                config={storeConfig}
-                onSaveConfig={handleSaveStoreConfig}
-                onLoadCustomDemoData={handleLoadCustomDemoData}
-              />
-              <CloudSync
-                transactions={transactions}
-                stockItems={stockItems}
-                storeConfig={storeConfig}
-                onSyncImport={handleSyncImport}
-              />
+          {/* Humble SAK EMKM footer */}
+          <footer className="bg-white border-t border-slate-200/80 py-5 text-center text-[10px] text-slate-400 select-none mt-auto">
+            <div className="max-w-7xl mx-auto px-4 space-y-1">
+              <p className="font-medium text-slate-500">
+                © 2026 Akuntan AI UMKM — Sistem Akuntansi Pintar SAK EMKM Ikatan Akuntan Indonesia (IAI).
+              </p>
+              <p className="font-mono text-[9px] text-slate-400">
+                Arsitektur Offline-First: Seluruh data pembukuan, transaksi, dan stok tersimpan terenkripsi di penyimpanan lokal browser Anda.
+              </p>
             </div>
-          )}
-        </section>
+          </footer>
 
-      </main>
-
-      {/* Humble footer */}
-      <footer className="bg-white border-t border-slate-150 py-6 text-center text-[10px] text-slate-400 select-none pb-12 mt-12">
-        <div className="max-w-7xl mx-auto px-4 space-y-2">
-          <p>© 2026 Akuntan AI UMKM — Solusi Pintar Pembukuan sesuai SAK EMKM Ikatan Akuntan Indonesia.</p>
-          <p className="font-mono text-[9px] text-slate-300">
-            Platform built-in sandboxed local storage engine. Semua data rahasia keuangan Anda 100% tersimpan aman di peramban (offline-first).
-          </p>
         </div>
-      </footer>
+
+      </div>
+
+      {/* Hardware Activation & Anti-Piracy License Modal */}
+      <ActivationModal
+        isOpen={showActivationModal}
+        onClose={() => setShowActivationModal(false)}
+        onActivationSuccess={(lic) => {
+          setActiveLicense(lic);
+          setShowActivationModal(false);
+          setWelcomeBanner(`Perangkat berhasil diaktivasi! Lisensi ${lic.licenseType === 'lifetime' ? 'Seumur Hidup' : lic.licenseType === 'annual' ? 'Tahunan' : 'Trial'} aktif untuk ${lic.ownerName}.`);
+        }}
+        allowDismiss={true}
+      />
+
     </div>
   );
 }

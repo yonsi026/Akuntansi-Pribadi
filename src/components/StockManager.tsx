@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Plus, 
   Tag, 
@@ -6,22 +6,41 @@ import {
   TrendingUp, 
   AlertTriangle,
   ShoppingBag,
-  Trash2
+  Trash2,
+  Printer
 } from "lucide-react";
-import { StockItem } from "../types";
+import { StockItem, StoreConfig } from "../types";
 import { formatIDR } from "./FinanceDashboard";
+import { generateStockInventoryPrintHtml } from "../utils/printTemplates";
+import { UniversalPrintModal } from "./UniversalPrintModal";
 
 interface StockManagerProps {
   stockItems: StockItem[];
   onAddStockItem: (item: Omit<StockItem, "id" | "purchaseHistory"> & { initialCost?: number }) => void;
   onDeleteStockItem: (id: string) => void;
+  initialView?: string;
+  storeConfig?: StoreConfig;
 }
 
 export const StockManager: React.FC<StockManagerProps> = ({
   stockItems,
   onAddStockItem,
-  onDeleteStockItem
+  onDeleteStockItem,
+  initialView,
+  storeConfig
 }) => {
+  const [stockView, setStockView] = useState<'katalog' | 'tambah' | 'hpp' | 'all'>(
+    initialView === 'tambah' ? 'tambah' : (initialView === 'hpp' ? 'hpp' : (initialView === 'katalog' ? 'katalog' : 'all'))
+  );
+  const [showStockPrintModal, setShowStockPrintModal] = useState(false);
+
+  useEffect(() => {
+    if (initialView === 'tambah') setStockView('tambah');
+    else if (initialView === 'hpp') setStockView('hpp');
+    else if (initialView === 'katalog') setStockView('katalog');
+    else if (initialView === 'all') setStockView('all');
+  }, [initialView]);
+
   const [name, setName] = useState<string>("");
   const [sku, setSku] = useState<string>("");
   const [unit, setUnit] = useState<string>("Pcs");
@@ -92,6 +111,38 @@ export const StockManager: React.FC<StockManagerProps> = ({
 
   return (
     <div className="space-y-6" id="stock-manager">
+      {/* HPP Educational banner when HPP view is selected */}
+      {stockView === 'hpp' && (
+        <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-5 space-y-3 animate-fade-in">
+          <div className="flex items-center gap-2 text-indigo-950 font-bold text-sm">
+            <TrendingUp className="w-5 h-5 text-indigo-600" />
+            <h4>Metode Harga Pokok Penjualan (HPP) SAK EMKM: Moving Average</h4>
+          </div>
+          <p className="text-xs text-indigo-900 leading-relaxed">
+            Sistem Akuntansi SAK EMKM menghitung Harga Pokok Penjualan menggunakan <strong>Metode Rata-Rata Bergerak (Weighted Moving Average)</strong> secara otomatis setiap kali Anda mencatat transaksi kulakan/pembelian stok baru.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+            <div className="bg-white p-3 rounded-xl border border-indigo-100">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Rumus HPP Rata-Rata</span>
+              <span className="font-mono text-xs font-bold text-slate-800 mt-1 block">
+                (Nilai Saldo Lama + Nilai Pembelian Baru) ÷ Total Kuantitas Fisik
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-xl border border-indigo-100">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Aset Persediaan Aktif</span>
+              <span className="font-mono text-sm font-bold text-emerald-600 mt-1 block">
+                {formatIDR(totalInventoryAssetVal)}
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-xl border border-indigo-100">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Katalog Item Terdaftar</span>
+              <span className="font-mono text-sm font-bold text-indigo-600 mt-1 block">
+                {totalItemCategories} Produk
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top micro summary stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Total asset valuation */}
@@ -135,7 +186,10 @@ export const StockManager: React.FC<StockManagerProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Creation Form column */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+        {(stockView === 'tambah' || stockView === 'all') && (
+        <div className={`bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4 ${
+          stockView === 'tambah' ? 'max-w-2xl mx-auto col-span-full w-full' : ''
+        }`}>
           <div>
             <h3 className="text-base font-bold text-slate-800">Daftarkan Produk Baru</h3>
             <p className="text-xs text-slate-400 mb-1">Tambahkan produk katalog untuk kalkulasi HPP dan penjualan stok retail</p>
@@ -256,12 +310,28 @@ export const StockManager: React.FC<StockManagerProps> = ({
             </button>
           </form>
         </div>
+        )}
 
         {/* Stock list table Grid */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-800">Katalog Stok &amp; Nilai HPP SAK EMKM</h3>
-            <p className="text-xs text-slate-400">Harga Beli Rata-Rata dihitung secara presisi menggunakan metode Saldo Berjalan (Moving Average)</p>
+        {(stockView === 'katalog' || stockView === 'hpp' || stockView === 'all') && (
+        <div className={`bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4 ${
+          stockView === 'all' ? 'lg:col-span-2' : 'col-span-full'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Katalog Stok &amp; Nilai HPP SAK EMKM</h3>
+              <p className="text-xs text-slate-400">Harga Beli Rata-Rata dihitung secara presisi menggunakan metode Saldo Berjalan (Moving Average)</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowStockPrintModal(true)}
+              disabled={stockItems.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 shrink-0"
+              title="Cetak Laporan Persediaan Barang (Print / PDF)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Cetak Stok (Print / PDF)</span>
+            </button>
           </div>
 
           {stockItems.length === 0 ? (
@@ -366,7 +436,17 @@ export const StockManager: React.FC<StockManagerProps> = ({
             </div>
           )}
         </div>
+        )}
       </div>
+
+      {/* MODAL CETAK KATALOG & NILAI STOK PERSEDIAAN */}
+      <UniversalPrintModal
+        isOpen={showStockPrintModal}
+        onClose={() => setShowStockPrintModal(false)}
+        title={`Katalog & Nilai Persediaan Stok - ${storeConfig?.storeName || 'SAK EMKM'}`}
+        filename={`Katalog-Stok-${Date.now()}.pdf`}
+        htmlContent={generateStockInventoryPrintHtml(stockItems, storeConfig || ({} as any))}
+      />
     </div>
   );
 };

@@ -23,7 +23,8 @@ import {
   TrendingUp, 
   UploadCloud, 
   FileText,
-  AlertCircle
+  AlertCircle,
+  KeyRound
 } from "lucide-react";
 import { UserAccount } from "../types";
 import { authenticateUser, registerNewUser, loginAsDemo, DEFAULT_DEMO_USER } from "../utils/authService";
@@ -31,9 +32,16 @@ import { authenticateUser, registerNewUser, loginAsDemo, DEFAULT_DEMO_USER } fro
 interface LandingPageProps {
   onLoginSuccess: (user: UserAccount, isNewRegistration?: boolean) => void;
   initialAuthMode?: "login" | "register" | "demo";
+  onOpenActivationModal?: () => void;
+  isActivated?: boolean;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, initialAuthMode = "login" }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ 
+  onLoginSuccess, 
+  initialAuthMode = "login",
+  onOpenActivationModal,
+  isActivated = false
+}) => {
   const [authMode, setAuthMode] = useState<"login" | "register" | "demo">(initialAuthMode);
   const authSectionRef = useRef<HTMLDivElement>(null);
 
@@ -218,6 +226,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, initia
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {onOpenActivationModal && (
+              <button
+                type="button"
+                onClick={onOpenActivationModal}
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer border shadow-2xs ${
+                  isActivated 
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100" 
+                    : "bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100 animate-pulse"
+                }`}
+                title="Aktivasi lisensi hardware anti-pembajakan"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{isActivated ? "Lisensi: Aktif" : "🔑 Aktivasi Perangkat"}</span>
+              </button>
+            )}
             <button
               onClick={() => scrollToAuth("login")}
               className="px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-950 transition rounded-lg hover:bg-slate-100 cursor-pointer"

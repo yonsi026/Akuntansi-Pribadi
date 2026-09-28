@@ -164,3 +164,86 @@ export interface UserAccount {
   isDemo?: boolean; // Flag if user is accessing in preview/demo mode
 }
 
+export interface InvoiceItem {
+  id: string;
+  stockItemId?: string;
+  productCode: string; // e.g. "PCS/00001" or stock item sku
+  productName: string; // e.g. "Custom Product" or stock item name
+  description: string; // e.g. "Baju koko"
+  quantity: number;
+  unit: string; // "Pcs", "Kg", "Dus", "Btl", etc.
+  discountPercent: number; // e.g. 0
+  unitPrice: number;
+  taxType: 'PPN' | 'NON';
+  amount: number; // (quantity * unitPrice * (1 - discount/100))
+}
+
+export interface InvoicePayment {
+  id: string;
+  paymentNumber: string; // e.g. "IP/00001"
+  date: string; // YYYY-MM-DD
+  amount: number;
+  accountId: number; // e.g. 1001 (Kas), 1002 (Bank)
+  accountName: string;
+  reference?: string; // e.g. "Transfer BCA", "Tunai", "QRIS"
+  tag?: string;
+  attachmentName?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface InvoiceLog {
+  id: string;
+  timestamp: string;
+  author: string;
+  action: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string; // e.g. "INV/00001"
+  status: 'unpaid' | 'partial' | 'paid';
+  
+  // Customer details
+  customerName: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  
+  // Dates
+  transactionDate: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD
+  
+  // Production / Warehouse
+  productionPlanStatus?: string; // "-"
+  productionPlanNumber?: string; // "-"
+  warehouse: string; // "Unassigned" | "Gudang Utama"
+  
+  // Shipping details
+  shippingDate?: string;
+  expedition?: string; // e.g. "Tiki", "JNE", "J&T", "Kurir Sendiri"
+  trackingNumber?: string; // No. Resi e.g. "45679995555"
+  
+  // Line items
+  items: InvoiceItem[];
+  
+  // Totals
+  subtotal: number;
+  ppnAmount: number;
+  shippingCost?: number;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  
+  // Payments received
+  payments: InvoicePayment[];
+  
+  // Activity log
+  logs: InvoiceLog[];
+  
+  notes?: string;
+  terms?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
