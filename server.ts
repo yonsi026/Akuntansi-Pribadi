@@ -82,7 +82,7 @@ Gunakan data ini jika pengguna bertanya tentang rasio keuangan, kesehatan bisnis
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.8-flash",
       contents: chatContents,
       config: {
         systemInstruction: customInstruction,
@@ -149,7 +149,7 @@ Tolong hasilkan respon terstruktur dalam Bahasa Indonesia yang berisi:
 Berikan jawaban yang hangat, memotivasi, dan penuh tips praktis! Gunakan istilah akuntansi dengan penjelasan sederhana.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.8-flash",
       contents: analysisPrompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -163,6 +163,78 @@ Berikan jawaban yang hangat, memotivasi, dan penuh tips praktis! Gunakan istilah
     console.error("Gemini Auto-Audit API Error:", error);
     res.status(500).json({ 
       error: "Gagal memproses audit otomatis bertenaga AI.", 
+      details: error.message 
+    });
+  }
+});
+
+// API Route: Specialized Product Profit Margin Analysis & Optimization Recommendations
+app.post("/api/analyze-margins", async (req, res) => {
+  try {
+    const { products, stats, storeConfig } = req.body;
+    
+    if (!products || !Array.isArray(products) || products.length === 0) {
+      res.status(400).json({ error: "Data produk kosong atau tidak valid." });
+      return;
+    }
+
+    const dynamicStoreDetails = storeConfig ? `
+======= IDENTITAS USAHA =======
+- Nama Toko: ${storeConfig.storeName}
+- Kategori Usaha: ${storeConfig.storeType}
+- Kota Domisili: ${storeConfig.storeCity}
+- Total Penjualan Toko: Rp ${(stats?.revenue || 0).toLocaleString('id-ID')}
+- Total Laba Bersih Toko: Rp ${(stats?.netProfit || 0).toLocaleString('id-ID')}
+==============================` : "";
+
+    const productBreakdown = products.map((p: any, idx: number) => {
+      return `${idx + 1}. ${p.name} (SKU: ${p.sku} | Kategori: ${p.category || 'Umum'})
+   - HPP Beli Rata-Rata: Rp ${(p.avgPurchasePrice || 0).toLocaleString('id-ID')}
+   - Harga Jual: Rp ${(p.sellPrice || 0).toLocaleString('id-ID')}
+   - Margin Keuntungan per Unit: Rp ${(p.unitMargin || 0).toLocaleString('id-ID')} (${(p.marginPercent || 0).toFixed(1)}%)
+   - Estimasi Kuantitas Terjual: ${p.soldQty || 0} ${p.unit || 'unit'}
+   - Total Laba Kotor Produk: Rp ${(p.totalProfit || 0).toLocaleString('id-ID')}
+   - Porsi Kontribusi terhadap Total Laba Produk: ${(p.profitContributionPercent || 0).toFixed(1)}%`;
+    }).join("\n\n");
+
+    const marginPrompt = `Sebagai Konsultan Finansial & Pakar Optimasi Laba Bisnis Retail/UMKM Indonesia (Akuntan AI), tolong lakukan "ANALISIS MARGIN KEUNTUNGAN PER PRODUK" yang tajam dan taktis berdasarkan data berikut:
+${dynamicStoreDetails}
+
+DATA MARGIN KEUNTUNGAN SETIAP PRODUK:
+${productBreakdown}
+
+Tolong berikan laporan analisis komprehensif dalam Bahasa Indonesia terstruktur rapi:
+1. 🏆 **Produk Juara Penghasil Laba (Top Profit Contributors)**:
+   - Sebutkan produk mana yang paling banyak menyumbang laba bersih toko secara nominal dan persentase.
+   - Mengapa produk ini menjadi tulang punggung keuntungan toko dan bagaimana cara memastikan stoknya tidak pernah kosong (anti-stockout).
+
+2. ⚠️ **Produk Evaluasi Margin Kritis (Low Margin / Risk)**:
+   - Sebutkan produk yang marginnya terlalu tipis (< 15%) atau kontribusinya sangat kecil.
+   - Apakah perlu menaikkan harga jual sedikit (misal Rp 500 - Rp 1.500), mencari supplier alternatif dengan harga beli lebih murah, atau mengubah strategi display.
+
+3. 💡 **Strategi Bundling Cerdas (Cross-Selling)**:
+   - Buat 2 contoh paket bundling nyata antara produk margin tinggi dengan produk kebutuhan pokok (volume maker) yang sering dibeli pelanggan, agar omzet dan laba naik bersamaan.
+
+4. 🎯 **Rencana Aksi 7 Hari ke Depan**:
+   - 3 langkah taktis praktis yang bisa dieksekusi pemilik toko minggu ini untuk mengerek margin laba bersih rata-rata.
+
+Gunakan bahasa yang komunikatif, suportif, berwawasan bisnis nyata, dan gunakan angka-angka yang relevan dengan toko tersebut.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: marginPrompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.7,
+      },
+    });
+
+    const text = response.text || "Gagal menyusun analisis margin keuntungan.";
+    res.json({ analysis: text });
+  } catch (error: any) {
+    console.error("Gemini Margin Analysis API Error:", error);
+    res.status(500).json({ 
+      error: "Gagal memproses analisis margin keuntungan bertenaga AI.", 
       details: error.message 
     });
   }

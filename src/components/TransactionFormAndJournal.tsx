@@ -28,7 +28,9 @@ import {
   Calendar,
   User,
   Tag,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  Clock
 } from "lucide-react";
 import { Transaction, TransactionType, StockItem, JournalEntry, LedgerItem, StoreConfig } from "../types";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
@@ -47,6 +49,7 @@ interface TransactionFormAndJournalProps {
   storeConfig?: StoreConfig;
   initialSubTab?: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice';
   onSubTabChange?: (tab: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice') => void;
+  onNavigateToTab?: (tab: string, sub?: string) => void;
 }
 
 interface PresetAction {
@@ -133,13 +136,23 @@ const PRESET_ACTIONS: PresetAction[] = [
   },
   {
     type: 'Penjualan',
-    label: 'Penjualan Retail',
+    label: 'Penjualan Retail (Tunai)',
     badge: 'Akun 4001',
-    desc: 'Penjualan barang dagang ke konsumen',
+    desc: 'Penjualan barang dagang kasir/konsumen',
     icon: ShoppingCart,
     borderClass: 'border-green-200 hover:border-green-400 bg-green-50/70',
     bgActive: 'bg-green-600 text-white border-green-600 shadow-sm ring-2 ring-green-300',
     badgeClass: 'bg-green-100 text-green-800'
+  },
+  {
+    type: 'Penjualan Kredit',
+    label: 'Penjualan Kredit (Tempo)',
+    badge: 'Piutang (1002)',
+    desc: 'Penjualan bertempo ke pelanggan / belum lunas',
+    icon: CreditCard,
+    borderClass: 'border-indigo-200 hover:border-indigo-400 bg-indigo-50/70',
+    bgActive: 'bg-indigo-700 text-white border-indigo-700 shadow-sm ring-2 ring-indigo-300',
+    badgeClass: 'bg-indigo-100 text-indigo-800'
   },
   {
     type: 'Pembelian',
@@ -211,7 +224,8 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
   onClearTransactions,
   storeConfig,
   initialSubTab,
-  onSubTabChange
+  onSubTabChange,
+  onNavigateToTab
 }) => {
   // Navigation for sub-tab: 'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice'
   const [subTab, setSubTab] = useState<'input' | 'jurnal' | 'bukubesar' | 'mutasi' | 'invoice'>(initialSubTab || 'input');
@@ -306,6 +320,16 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
   const [repairType, setRepairType] = useState<string>("Servis AC Toko & Cuci Filter");
   const [repairVendor, setRepairVendor] = useState<string>("");
 
+  // 8. Penjualan Kredit & Piutang Pelanggan
+  const [creditCustomerName, setCreditCustomerName] = useState<string>("");
+  const [creditCustomerPhone, setCreditCustomerPhone] = useState<string>("");
+  const [creditCustomerAddress, setCreditCustomerAddress] = useState<string>("");
+  const [creditDueDate, setCreditDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split('T')[0];
+  });
+
   // History search & filter
   const [historyCategoryFilter, setHistoryCategoryFilter] = useState<string>("Semua");
   const [historySearchQuery, setHistorySearchQuery] = useState<string>("");
@@ -387,6 +411,16 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
         }
         break;
       }
+      case "Penjualan Kredit": {
+        const item = stockItems.find(i => i.id === selectedStockItemId);
+        const cust = creditCustomerName.trim() ? ` — ${creditCustomerName.trim()}` : "";
+        if (item) {
+          setDescription(`Penjualan Kredit ${item.name} (${stockQuantity} ${item.unit})${cust}`);
+        } else {
+          setDescription(`Penjualan Kredit Barang Dagang${cust}`);
+        }
+        break;
+      }
       case "Pembelian":
       case "Pembelian Stok": {
         const item = stockItems.find(i => i.id === selectedStockItemId);
@@ -418,7 +452,7 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
 
   // Side-effect: auto-calculate amount if stock transaction is active
   useEffect(() => {
-    if (type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan') {
+    if (type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan' || type === 'Penjualan Kredit') {
       const selectedItem = stockItems.find(item => item.id === selectedStockItemId);
       if (selectedItem) {
         const unitPrice = (type === 'Pembelian Stok' || type === 'Pembelian')
@@ -435,7 +469,7 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
 
   // Adjust stock parameters on type change
   useEffect(() => {
-    if (type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan') {
+    if (type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan' || type === 'Penjualan Kredit') {
       if (stockItems.length > 0 && !selectedStockItemId) {
         setSelectedStockItemId(stockItems[0].id);
       }
@@ -450,6 +484,9 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
   useEffect(() => {
     if (type === 'Penjualan' || type === 'Penjualan Stok') {
       setDebitAccountSelect("1001"); // Kas & Setara Kas
+      setCreditAccountSelect("4001"); // Pendapatan Penjualan
+    } else if (type === 'Penjualan Kredit') {
+      setDebitAccountSelect("1002"); // Piutang Usaha
       setCreditAccountSelect("4001"); // Pendapatan Penjualan
     } else if (type === 'Pembelian' || type === 'Pembelian Stok') {
       setDebitAccountSelect("1003"); // Persediaan Barang Dagang
@@ -559,9 +596,9 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
     }
 
     // Detail inventory validation if relevant
-    const isInventoryTx = type === 'Penjualan' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Pembelian Stok';
-    if (isInventoryTx) {
-      if (!selectedStockItemId) {
+    const isInventoryTx = type === 'Penjualan' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Pembelian Stok' || (type === 'Penjualan Kredit' && !!selectedStockItemId);
+    if (isInventoryTx && (type !== 'Penjualan Kredit' || selectedStockItemId)) {
+      if (!selectedStockItemId && type !== 'Penjualan Kredit') {
         setErrorHeader("Silakan pilih produk stok persediaan!");
         return;
       }
@@ -597,7 +634,16 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
     };
 
     // Attach operational & fixed asset metadata
-    if (type === 'Gaji Karyawan') {
+    if (type === 'Penjualan Kredit') {
+      transactionData.customerName = creditCustomerName.trim() || "Pelanggan Kredit";
+      transactionData.customerPhone = creditCustomerPhone.trim() || undefined;
+      transactionData.customerAddress = creditCustomerAddress.trim() || undefined;
+      transactionData.dueDate = creditDueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+      transactionData.paidAmount = 0;
+      transactionData.remainingAmount = amount;
+      transactionData.isCreditSale = true;
+      transactionData.status = 'unpaid';
+    } else if (type === 'Gaji Karyawan') {
       transactionData.operationalCategory = 'Gaji';
       transactionData.employeeName = salaryEmployeeName.trim() || undefined;
     } else if (type === 'Listrik & Air') {
@@ -624,7 +670,7 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
       transactionData.stockPricePerUnit = stockPricePerUnit;
       
       const matchedItem = stockItems.find(i => i.id === selectedStockItemId);
-      if ((type === 'Penjualan' || type === 'Penjualan Stok') && matchedItem) {
+      if ((type === 'Penjualan' || type === 'Penjualan Stok' || type === 'Penjualan Kredit') && matchedItem) {
         // HPP = quantity sold * its average purchase price
         transactionData.hppAmountPosted = stockQuantity * matchedItem.avgPurchasePrice;
       }
@@ -664,37 +710,12 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
           stockItems={stockItems}
           storeConfig={storeConfig || ({} as any)}
           onAddTransaction={onAddTransaction}
+          onNavigateToTab={onNavigateToTab}
         />
       )}
 
       {subTab === 'input' && (
         <div className="space-y-6">
-          {/* Quick link to official invoice maker */}
-          <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 text-white p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-emerald-400 shrink-0">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
-                  <span>Butuh Faktur Tagihan Resmi untuk Pelanggan?</span>
-                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30">INV/00001</span>
-                </h4>
-                <p className="text-[11px] text-slate-300">
-                  Buat faktur penjualan lengkap dengan detail ekspedisi pengiriman (Tiki/JNE), no. resi, WhatsApp billing, dan pencatatan pembayaran
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleSwitchTab('invoice')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer shrink-0 shadow-xs active:scale-95 flex items-center gap-1.5"
-            >
-              <span>Buka Detil Tagihan &amp; Faktur</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" id="input-view">
           {/* Main Enter Form */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
@@ -1330,8 +1351,118 @@ export const TransactionFormAndJournal: React.FC<TransactionFormAndJournalProps>
                 </div>
               )}
 
+              {/* 8. Panel Penjualan Kredit & Piutang Pelanggan */}
+              {type === 'Penjualan Kredit' && (
+                <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-4 sm:p-5 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-indigo-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-indigo-600 text-white rounded-lg">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-indigo-950">Formulir Penjualan Kredit &amp; Piutang Pelanggan</h4>
+                        <p className="text-[10px] text-indigo-700">Akun: 1002 - Piutang Usaha (Debit) &amp; 4001 - Pendapatan Penjualan (Kredit)</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold font-mono bg-indigo-200 text-indigo-950 px-2 py-0.5 rounded-full">
+                      Piutang SAK EMKM
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-indigo-950 mb-1">Nama Pelanggan / Toko <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="Misal: PT Sumber Rejeki, Toko Barokah"
+                        value={creditCustomerName}
+                        onChange={(e) => {
+                          setCreditCustomerName(e.target.value);
+                          const cust = e.target.value.trim() ? ` — ${e.target.value.trim()}` : "";
+                          setDescription(`Penjualan Kredit Barang Dagang${cust} (Jatuh Tempo: ${creditDueDate})`);
+                        }}
+                        className="w-full text-xs bg-white border border-indigo-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-indigo-950 mb-1">No. WhatsApp / HP</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: 0812-3456-7890"
+                        value={creditCustomerPhone}
+                        onChange={(e) => setCreditCustomerPhone(e.target.value)}
+                        className="w-full text-xs bg-white border border-indigo-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-indigo-950 mb-1">Kota / Alamat Singkat</label>
+                      <input
+                        type="text"
+                        placeholder="Misal: Cikarang, Banten"
+                        value={creditCustomerAddress}
+                        onChange={(e) => setCreditCustomerAddress(e.target.value)}
+                        className="w-full text-xs bg-white border border-indigo-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-indigo-950">Tgl Jatuh Tempo</label>
+                        <span className="text-[10px] text-indigo-600 font-medium">Batas Bayar</span>
+                      </div>
+                      <input
+                        type="date"
+                        value={creditDueDate}
+                        onChange={(e) => {
+                          setCreditDueDate(e.target.value);
+                          const cust = creditCustomerName.trim() ? ` — ${creditCustomerName.trim()}` : "";
+                          setDescription(`Penjualan Kredit Barang Dagang${cust} (Jatuh Tempo: ${e.target.value})`);
+                        }}
+                        className="w-full text-xs bg-white border border-indigo-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Term Duration Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
+                    <span className="text-[11px] text-indigo-900 font-semibold mr-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-indigo-600" />
+                      Pilihan Termin Cepat:
+                    </span>
+                    {[7, 14, 30, 45, 60].map((days) => {
+                      return (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => {
+                            const d = new Date(date || new Date().toISOString().split('T')[0]);
+                            d.setDate(d.getDate() + days);
+                            const nextDue = d.toISOString().split('T')[0];
+                            setCreditDueDate(nextDue);
+                            const cust = creditCustomerName.trim() ? ` — ${creditCustomerName.trim()}` : "";
+                            setDescription(`Penjualan Kredit Barang Dagang${cust} (Jatuh Tempo: ${nextDue})`);
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                        >
+                          +{days} Hari (Termin {days})
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-start gap-2 bg-indigo-100/70 p-2.5 rounded-xl text-[11px] text-indigo-950 leading-relaxed">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-700" />
+                    <span>
+                      <strong>Jurnal Otomatis Berpasangan:</strong> Mendebit <strong>1002 - Piutang Usaha</strong> dan Mengkredit <strong>4001 - Pendapatan Penjualan</strong>. Transaksi ini akan otomatis masuk ke dalam <strong>Daftar Piutang Pelanggan</strong> dan dihitung umur piutangnya (Aging Schedule) berdasarkan tanggal jatuh tempo yang Anda tentukan di atas.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Stock Selector Details if relevant */}
-              {(type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan') && (
+              {(type === 'Pembelian Stok' || type === 'Penjualan Stok' || type === 'Pembelian' || type === 'Penjualan' || type === 'Penjualan Kredit') && (
                 <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-100">
                   <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Detail Inventaris Stok</span>
                   

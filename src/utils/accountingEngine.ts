@@ -53,7 +53,7 @@ export function generateJournal(transactions: Transaction[]): JournalEntry[] {
     const credName = tx.customCreditAccountName || getAccountName(credId);
 
     // Apply PPN adjustments logically
-    const isSale = tx.type === "Penjualan" || tx.type === "Penjualan Stok" || tx.type === "Penerimaan";
+    const isSale = tx.type === "Penjualan" || tx.type === "Penjualan Stok" || tx.type === "Penerimaan" || tx.type === "Penjualan Kredit";
     const isPurchaseExpense = 
       tx.type === "Pembelian" || 
       tx.type === "Pembelian Stok" || 
@@ -185,7 +185,7 @@ export function generateJournal(transactions: Transaction[]): JournalEntry[] {
 
     // Secondary entry for COGS/HPP matching on sales of Stock (if provided)
     const hpp = tx.hppAmountPosted || 0;
-    if ((tx.type === "Penjualan" || tx.type === "Penjualan Stok") && hpp > 0) {
+    if ((tx.type === "Penjualan" || tx.type === "Penjualan Stok" || tx.type === "Penjualan Kredit") && hpp > 0) {
       journal.push({
         id: `${txId}-HPP`,
         date,
@@ -400,7 +400,7 @@ export function recalculateInventoryAverage(transactions: Transaction[], rawItem
         pricePerUnit: price
       });
     } 
-    else if (tx.type === 'Penjualan Stok' || tx.type === 'Penjualan') {
+    else if (tx.type === 'Penjualan Stok' || tx.type === 'Penjualan' || tx.type === 'Penjualan Kredit') {
       // Sale decreases units, but average unit cost remains the same!
       item.stock = Math.max(0, item.stock - qty);
       // We do not change avgPurchasePrice on sales

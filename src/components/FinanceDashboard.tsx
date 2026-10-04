@@ -27,7 +27,8 @@ import {
   Building2, 
   BookOpen, 
   ExternalLink,
-  Info
+  Info,
+  Store
 } from "lucide-react";
 import { FinancialStats, Transaction, StockItem, StoreConfig } from "../types";
 import { DashboardCharts } from "./DashboardCharts";
@@ -204,10 +205,10 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
               <span className="text-slate-500">Likuiditas Kas (1001)</span>
               <button 
-                onClick={() => onNavigateToTab("transaksi")} 
+                onClick={() => onNavigateToTab("transaksi", "mutasi")} 
                 className="text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-0.5 cursor-pointer"
               >
-                Buku Kas →
+                Buku Kas &rarr;
               </button>
             </div>
           </div>
@@ -227,10 +228,13 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({
               {formatIDR(stats.revenue)}
             </h3>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
-              <span className="text-slate-500">Peredaran Bruto Usaha</span>
-              <span className="bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-md text-[10px]">
-                {salesCount} Penjualan
-              </span>
+              <span className="text-slate-500">{salesCount} Penjualan</span>
+              <button
+                onClick={() => onNavigateToTab("penjualan", "overview")}
+                className="text-emerald-700 hover:text-emerald-900 font-semibold inline-flex items-center gap-0.5 cursor-pointer"
+              >
+                Penjualan &rarr;
+              </button>
             </div>
           </div>
         </div>
@@ -250,11 +254,14 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({
             </h3>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
               <span className="text-slate-500 truncate" title={`HPP: ${formatIDR(stats.hpp)} · Biaya: ${formatIDR(stats.expenses)}`}>
-                HPP + Biaya Operasional
+                HPP + Biaya
               </span>
-              <span className="text-slate-600 font-mono text-[10px]">
-                {stats.revenue > 0 ? Math.round(((stats.expenses + stats.hpp) / stats.revenue) * 100) : 0}% omzet
-              </span>
+              <button
+                onClick={() => onNavigateToTab("transaksi", "input")}
+                className="text-rose-600 hover:text-rose-800 font-semibold inline-flex items-center gap-0.5 cursor-pointer"
+              >
+                Catat Biaya &rarr;
+              </button>
             </div>
           </div>
         </div>
@@ -273,10 +280,13 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({
               {formatIDR(stats.netProfit)}
             </h3>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
-              <span className="text-slate-500">Margin Laba Bersih</span>
-              <span className={`font-bold px-2 py-0.5 rounded-md text-[10px] ${stats.netProfit >= 0 ? "bg-indigo-50 text-indigo-700" : "bg-rose-50 text-rose-700"}`}>
-                {netMargin}% Margin
-              </span>
+              <span className="text-slate-500">{netMargin}% Margin</span>
+              <button
+                onClick={() => onNavigateToTab("laporan", "labarugi")}
+                className="text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-0.5 cursor-pointer"
+              >
+                Laba Rugi &rarr;
+              </button>
             </div>
           </div>
         </div>
@@ -291,34 +301,50 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({
               <PlusCircle className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold font-display text-white">Aksi Cepat Pembukuan</p>
-              <p className="text-[11px] text-slate-400">Pintasan praktis input mutasi kas, stok, dan pencetakan laporan</p>
+              <p className="text-xs font-bold font-display text-white">Aksi Cepat Pembukuan &amp; Kasir</p>
+              <p className="text-[11px] text-slate-400">Pintasan praktis terhubung ke kasir POS, kas bank, stok, dan laporan</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => onNavigateToTab("transaksi")}
+              onClick={() => onNavigateToTab("pos")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer shadow-xs active:scale-95"
+            >
+              <Store className="w-3.5 h-3.5" />
+              <span>Buka Kasir (POS)</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateToTab("transaksi", "mutasi")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+            >
+              <Wallet className="w-3.5 h-3.5 text-blue-400" />
+              <span>Buku Kas &amp; Bank</span>
+            </button>
+
+            <button
+              onClick={() => onNavigateToTab("penjualan", "tagihan")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
             >
               <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" />
-              <span>+ Catat Penjualan</span>
+              <span>Faktur Penjualan</span>
             </button>
 
             <button
-              onClick={() => onNavigateToTab("transaksi")}
+              onClick={() => onNavigateToTab("transaksi", "input")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
             >
               <ArrowUpRight className="w-3.5 h-3.5 text-rose-400" />
-              <span>+ Catat Beban / Biaya</span>
+              <span>Catat Biaya</span>
             </button>
 
             <button
-              onClick={() => onNavigateToTab("stok")}
+              onClick={() => onNavigateToTab("stok", "katalog")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
             >
               <Boxes className="w-3.5 h-3.5 text-amber-400" />
-              <span>+ Tambah Stok Barang</span>
+              <span>Stok (HPP)</span>
             </button>
 
             <button

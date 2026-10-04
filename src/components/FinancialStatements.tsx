@@ -20,12 +20,37 @@ import {
   FileSpreadsheet,
   Clock,
   ArrowRight,
-  LayoutList
+  LayoutList,
+  CreditCard,
+  AlertCircle,
+  Phone,
+  User as UserIcon,
+  Search,
+  Info,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Receipt,
+  CheckCheck,
+  Scale,
+  Activity
 } from "lucide-react";
-import { FinancialStats, Transaction, StockItem, JournalEntry, StoreConfig } from "../types";
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Cell,
+  PieChart, 
+  Pie
+} from "recharts";
+import { FinancialStats, Transaction, StockItem, JournalEntry, StoreConfig, Invoice } from "../types";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
 import { computeTrialBalance, generateJournal, computeFinancialStats } from "../utils/accountingEngine";
 import { exportToXLSX } from "../utils/xlsxExport";
+import { getStoredInvoices } from "../utils/invoiceService";
 import { 
   parseExcelFile, 
   mergeTransactionsWithoutOverwrite, 
@@ -44,7 +69,9 @@ interface FinancialStatementsProps {
   journal: JournalEntry[];
   storeConfig?: StoreConfig;
   onImportTransactions?: (mergedTxs: Transaction[], mergedStocks?: StockItem[]) => void;
-  initialReport?: 'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'ekspor' | 'import';
+  onUpdateTransactions?: (txs: Transaction[]) => void;
+  initialReport?: 'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'piutang' | 'ekspor' | 'import';
+  onReportChange?: (report: 'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'piutang' | 'ekspor' | 'import') => void;
 }
 
 const MONTH_NAMES = [
@@ -62,6 +89,26 @@ const MONTH_NAMES = [
   { value: "12", label: "Desember" }
 ];
 
+export function angkaTerbilang(nilai: number): string {
+  if (!nilai || nilai <= 0) return "Nol Rupiah";
+  const satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
+  
+  function terbilang(n: number): string {
+    if (n < 12) return satuan[n];
+    if (n < 20) return `${terbilang(n - 10)} Belas`;
+    if (n < 100) return `${terbilang(Math.floor(n / 10))} Puluh ${terbilang(n % 10)}`.trim();
+    if (n < 200) return `Seratus ${terbilang(n - 100)}`.trim();
+    if (n < 1000) return `${terbilang(Math.floor(n / 100))} Ratus ${terbilang(n % 100)}`.trim();
+    if (n < 2000) return `Seribu ${terbilang(n - 1000)}`.trim();
+    if (n < 1000000) return `${terbilang(Math.floor(n / 1000))} Ribu ${terbilang(n % 1000)}`.trim();
+    if (n < 1000000000) return `${terbilang(Math.floor(n / 1000000))} Juta ${terbilang(n % 1000000)}`.trim();
+    if (n < 1000000000000) return `${terbilang(Math.floor(n / 1000000000))} Miliar ${terbilang(n % 1000000000)}`.trim();
+    return `${terbilang(Math.floor(n / 1000000000000))} Triliun ${terbilang(n % 1000000000000)}`.trim();
+  }
+
+  return `${terbilang(Math.floor(nilai))} Rupiah`;
+}
+
 export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
   stats,
   transactions,
@@ -69,15 +116,52 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
   journal,
   storeConfig,
   onImportTransactions,
-  initialReport
+  onUpdateTransactions,
+  initialReport,
+  onReportChange
 }) => {
-  const [activeReport, setActiveReport] = useState<'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'ekspor' | 'import'>(initialReport || 'labarugi');
+  const [activeReport, setActiveReport] = useState<'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'piutang' | 'ekspor' | 'import'>(initialReport || 'labarugi');
 
   useEffect(() => {
     if (initialReport) {
       setActiveReport(initialReport);
     }
   }, [initialReport]);
+
+  const changeReport = (report: 'labarugi' | 'neraca' | 'aruskas' | 'neracasaldo' | 'piutang' | 'ekspor' | 'import') => {
+    setActiveReport(report);
+    if (onReportChange) {
+      onReportChange(report);
+    }
+  };
+
+  // Load customer invoices & credit sales states for Daftar Piutang Pelanggan
+  const [invoices, setInvoices] = useState<Invoice[]>(() => getStoredInvoices());
+  const [piutangSearch, setPiutangSearch] = useState<string>("");
+  const [piutangStatusFilter, setPiutangStatusFilter] = useState<'all' | 'unpaid' | 'overdue' | 'paid'>('all');
+  const [piutangAgingFilter, setPiutangAgingFilter] = useState<'all' | 'current' | '1-30' | '31-60' | '>60'>('all');
+  const [piutangChartView, setPiutangChartView] = useState<'both' | 'bar' | 'donut'>('both');
+  
+  // Payment recording states for Pelunasan Piutang
+  const [selectedReceivableForPayment, setSelectedReceivableForPayment] = useState<any | null>(null);
+  const [paymentMode, setPaymentMode] = useState<'full' | 'partial'>('full');
+  const [paymentAmountInput, setPaymentAmountInput] = useState<number>(0);
+  const [paymentDateInput, setPaymentDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [paymentSourceAccount, setPaymentSourceAccount] = useState<number>(1001);
+  const [paymentReceiptNumber, setPaymentReceiptNumber] = useState<string>("");
+  const [paymentNotesInput, setPaymentNotesInput] = useState<string>("");
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [settledReceiptData, setSettledReceiptData] = useState<any | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      setInvoices(getStoredInvoices());
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   // --- PERIOD & DATE FILTERING STATES (BULAN, TANGGAL & TAHUN) ---
   const currentYearStr = new Date().getFullYear().toString();
@@ -114,14 +198,12 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
 
   // Derive journal & stats for the active period
   const activeJournal = useMemo(() => {
-    if (filterMode === 'all') return journal;
     return generateJournal(activeTransactions);
-  }, [journal, activeTransactions, filterMode]);
+  }, [activeTransactions]);
 
   const activeStats = useMemo(() => {
-    if (filterMode === 'all') return stats;
     return computeFinancialStats(activeTransactions, activeJournal);
-  }, [stats, activeTransactions, activeJournal, filterMode]);
+  }, [activeTransactions, activeJournal]);
 
   const trialBalance = useMemo(() => computeTrialBalance(activeJournal), [activeJournal]);
   const totalTbDebit = trialBalance.reduce((sum, item) => sum + (item.debit || 0), 0);
@@ -219,6 +301,565 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
     filename: "",
     html: ""
   });
+
+  // --- DAFTAR PIUTANG PELANGGAN & AGING SCHEDULE (SAK EMKM) ---
+  const creditSalesReceivables = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Pull credit sales transactions from activeTransactions (or fallback to transactions)
+    const txSource = activeTransactions.length > 0 ? activeTransactions : transactions;
+    const creditTxs = txSource.filter(t => 
+      t.type === 'Penjualan Kredit' || 
+      t.isCreditSale || 
+      t.debitAccount === 1002 ||
+      (t.type === 'Penjualan' && t.remainingAmount !== undefined && t.remainingAmount > 0)
+    );
+
+    const fromTransactions = creditTxs.map(t => {
+      const total = t.amount;
+      const paid = t.paidAmount || 0;
+      const remaining = t.remainingAmount !== undefined ? t.remainingAmount : Math.max(0, total - paid);
+
+      let dueDate = t.dueDate;
+      if (!dueDate) {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime())) {
+          d.setDate(d.getDate() + 30);
+          dueDate = d.toISOString().split('T')[0];
+        } else {
+          dueDate = t.date;
+        }
+      }
+
+      let customer = t.customerName;
+      if (!customer) {
+        const match = t.description.match(/(?:—|-|ke|untuk)\s+([A-Za-z0-9\s.]+)/i);
+        customer = match ? match[1].trim() : "Pelanggan Kredit";
+      }
+
+      const due = new Date(dueDate);
+      due.setHours(0, 0, 0, 0);
+      const diffTime = today.getTime() - due.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const isOverdue = remaining > 0 && diffDays > 0;
+
+      let agingCategory = "Lunas";
+      let agingBucket: 'current' | '1-30' | '31-60' | '>60' = 'current';
+
+      if (remaining > 0) {
+        if (diffDays <= 0) {
+          agingCategory = "Belum Jatuh Tempo (Lancar)";
+          agingBucket = 'current';
+        } else if (diffDays <= 30) {
+          agingCategory = `Lewat 1-30 Hari (${diffDays} Hari)`;
+          agingBucket = '1-30';
+        } else if (diffDays <= 60) {
+          agingCategory = `Lewat 31-60 Hari (${diffDays} Hari)`;
+          agingBucket = '31-60';
+        } else {
+          agingCategory = `Lewat >60 Hari (${diffDays} Hari)`;
+          agingBucket = '>60';
+        }
+      }
+
+      return {
+        id: t.id,
+        invoiceNumber: t.invoiceNumber || `FK-${t.id.slice(0, 6).toUpperCase()}`,
+        customerName: customer,
+        customerPhone: t.customerPhone || "-",
+        customerAddress: t.customerAddress || "-",
+        transactionDate: t.date,
+        dueDate,
+        totalAmount: total,
+        paidAmount: paid,
+        remainingAmount: remaining,
+        diffDays,
+        isOverdue,
+        agingCategory,
+        agingBucket,
+        source: 'transaction' as const,
+        status: remaining <= 0 ? ('paid' as const) : (paid > 0 ? ('partial' as const) : ('unpaid' as const)),
+        description: t.description,
+        originalTxId: t.id,
+        paymentHistory: t.paymentHistory || []
+      };
+    });
+
+    // 2. Also incorporate invoices from localStorage (if not already matched)
+    const existingRefNumbers = new Set(fromTransactions.map(x => x.invoiceNumber));
+    const fromInvoices = invoices
+      .filter(inv => !existingRefNumbers.has(inv.invoiceNumber))
+      .map(inv => {
+        const due = new Date(inv.dueDate);
+        due.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - due.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const isOverdue = inv.remainingAmount > 0 && diffDays > 0;
+
+        let agingCategory = "Lunas";
+        let agingBucket: 'current' | '1-30' | '31-60' | '>60' = 'current';
+
+        if (inv.remainingAmount > 0) {
+          if (diffDays <= 0) {
+            agingCategory = "Belum Jatuh Tempo (Lancar)";
+            agingBucket = 'current';
+          } else if (diffDays <= 30) {
+            agingCategory = `Lewat 1-30 Hari (${diffDays} Hari)`;
+            agingBucket = '1-30';
+          } else if (diffDays <= 60) {
+            agingCategory = `Lewat 31-60 Hari (${diffDays} Hari)`;
+            agingBucket = '31-60';
+          } else {
+            agingCategory = `Lewat >60 Hari (${diffDays} Hari)`;
+            agingBucket = '>60';
+          }
+        }
+
+        return {
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          customerName: inv.customerName,
+          customerPhone: inv.customerPhone || "-",
+          customerAddress: inv.customerAddress || "-",
+          transactionDate: inv.transactionDate,
+          dueDate: inv.dueDate,
+          totalAmount: inv.totalAmount,
+          paidAmount: inv.paidAmount,
+          remainingAmount: inv.remainingAmount,
+          diffDays,
+          isOverdue,
+          agingCategory,
+          agingBucket,
+          source: 'invoice' as const,
+          status: inv.status,
+          description: inv.notes || `Faktur Penjualan ${inv.invoiceNumber}`,
+          paymentHistory: (inv.payments || []).map(p => ({
+            id: p.id,
+            date: p.date,
+            amount: p.amount,
+            receiptNumber: p.paymentNumber,
+            accountName: p.accountName,
+            note: p.reference
+          }))
+        };
+      });
+
+    const combined = [...fromTransactions, ...fromInvoices];
+
+    // Fallback demo receivables if both transactions and invoices have no credit records
+    if (combined.length === 0) {
+      const demo1Due = new Date(today.getTime() - 25 * 86400000).toISOString().split('T')[0];
+      const demo1Tx = new Date(today.getTime() - 55 * 86400000).toISOString().split('T')[0];
+      const demo2Due = new Date(today.getTime() - 48 * 86400000).toISOString().split('T')[0];
+      const demo2Tx = new Date(today.getTime() - 78 * 86400000).toISOString().split('T')[0];
+      const demo3Due = new Date(today.getTime() + 14 * 86400000).toISOString().split('T')[0];
+      const demo3Tx = today.toISOString().split('T')[0];
+      const demo4Due = new Date(today.getTime() - 75 * 86400000).toISOString().split('T')[0];
+      const demo4Tx = new Date(today.getTime() - 105 * 86400000).toISOString().split('T')[0];
+
+      return [
+        {
+          id: "demo-rec-1",
+          invoiceNumber: "FPK/2026/001",
+          customerName: "PT Sumber Rejeki Abadi",
+          customerPhone: "0812-8877-6655",
+          customerAddress: "Jl. Industri Raya No. 12, Cikarang",
+          transactionDate: demo1Tx,
+          dueDate: demo1Due,
+          totalAmount: 3500000,
+          paidAmount: 1000000,
+          remainingAmount: 2500000,
+          diffDays: 25,
+          isOverdue: true,
+          agingCategory: "Lewat 1-30 Hari (25 Hari)",
+          agingBucket: "1-30" as const,
+          source: 'transaction' as const,
+          status: 'partial' as const,
+          description: "Penjualan Kredit Grosir Termin 30 Hari — PT Sumber Rejeki Abadi",
+          paymentHistory: [
+            {
+              id: "demo-pay-1",
+              date: demo1Tx,
+              amount: 1000000,
+              receiptNumber: "BKM/2026/05/0122",
+              accountName: "1001 Kas & Setara Kas",
+              note: "Uang muka termin penjualan kredit"
+            }
+          ]
+        },
+        {
+          id: "demo-rec-2",
+          invoiceNumber: "FPK/2026/002",
+          customerName: "Koperasi Karyawan Sejahtera",
+          customerPhone: "0813-2233-4455",
+          customerAddress: "Kawasan Industri MM2100",
+          transactionDate: demo2Tx,
+          dueDate: demo2Due,
+          totalAmount: 1800000,
+          paidAmount: 0,
+          remainingAmount: 1800000,
+          diffDays: 48,
+          isOverdue: true,
+          agingCategory: "Lewat 31-60 Hari (48 Hari)",
+          agingBucket: "31-60" as const,
+          source: 'transaction' as const,
+          status: 'unpaid' as const,
+          description: "Penjualan Kredit Paket Usaha — Koperasi Karyawan Sejahtera",
+          paymentHistory: []
+        },
+        {
+          id: "demo-rec-3",
+          invoiceNumber: "FPK/2026/003",
+          customerName: "Toko Grosir Berkah Barokah",
+          customerPhone: "0817-9988-1122",
+          customerAddress: "Jl. Surya Kencana No. 88, Bogor",
+          transactionDate: demo3Tx,
+          dueDate: demo3Due,
+          totalAmount: 2750000,
+          paidAmount: 750000,
+          remainingAmount: 2000000,
+          diffDays: -14,
+          isOverdue: false,
+          agingCategory: "Belum Jatuh Tempo (Lancar)",
+          agingBucket: "current" as const,
+          source: 'transaction' as const,
+          status: 'partial' as const,
+          description: "Penjualan Kredit Barang Dagang Tempo 14 Hari — Toko Berkah Barokah",
+          paymentHistory: [
+            {
+              id: "demo-pay-3",
+              date: demo3Tx,
+              amount: 750000,
+              receiptNumber: "BKM/2026/06/0045",
+              accountName: "1001 Kas & Setara Kas",
+              note: "Pembayaran termin ke-1"
+            }
+          ]
+        },
+        {
+          id: "demo-rec-4",
+          invoiceNumber: "FPK/2026/004",
+          customerName: "CV Mitra Sarana Logistik",
+          customerPhone: "0821-3344-9900",
+          customerAddress: "Jl. Pelabuhan Tanjung Mas No. 45, Semarang",
+          transactionDate: demo4Tx,
+          dueDate: demo4Due,
+          totalAmount: 1200000,
+          paidAmount: 0,
+          remainingAmount: 1200000,
+          diffDays: 75,
+          isOverdue: true,
+          agingCategory: "Lewat >60 Hari (75 Hari)",
+          agingBucket: ">60" as const,
+          source: 'transaction' as const,
+          status: 'unpaid' as const,
+          description: "Penjualan Kredit Bahan Pendukung — CV Mitra Sarana Logistik",
+          paymentHistory: []
+        }
+      ];
+    }
+
+    return combined;
+  }, [activeTransactions, transactions, invoices]);
+
+  const unpaidReceivables = useMemo(() => {
+    return creditSalesReceivables.filter(inv => inv.remainingAmount > 0);
+  }, [creditSalesReceivables]);
+
+  const totalOutstandingPiutang = useMemo(() => {
+    return unpaidReceivables.reduce((sum, inv) => sum + inv.remainingAmount, 0);
+  }, [unpaidReceivables]);
+
+  const totalOverduePiutang = useMemo(() => {
+    return unpaidReceivables.filter(inv => inv.isOverdue).reduce((sum, inv) => sum + inv.remainingAmount, 0);
+  }, [unpaidReceivables]);
+
+  const totalCurrentPiutang = useMemo(() => {
+    return unpaidReceivables.filter(inv => !inv.isOverdue).reduce((sum, inv) => sum + inv.remainingAmount, 0);
+  }, [unpaidReceivables]);
+
+  const totalAllInvoiced = useMemo(() => {
+    return creditSalesReceivables.reduce((sum, inv) => sum + inv.totalAmount, 0);
+  }, [creditSalesReceivables]);
+
+  const totalAllPaid = useMemo(() => {
+    return creditSalesReceivables.reduce((sum, inv) => sum + inv.paidAmount, 0);
+  }, [creditSalesReceivables]);
+
+  // --- AGING CHART DATA (RECHARTS) FOR DAFTAR PIUTANG PELANGGAN ---
+  const agingChartData = useMemo(() => {
+    // 4 Kategori bucket: Belum Jatuh Tempo, 1-30 Hari, 31-60 Hari, dan >60 Hari
+    const currentItems = unpaidReceivables.filter(i => !i.isOverdue || i.diffDays <= 0 || i.agingBucket === 'current');
+    const late1to30 = unpaidReceivables.filter(i => i.isOverdue && i.diffDays > 0 && i.diffDays <= 30);
+    const late31to60 = unpaidReceivables.filter(i => i.isOverdue && i.diffDays > 30 && i.diffDays <= 60);
+    const lateOver60 = unpaidReceivables.filter(i => i.isOverdue && i.diffDays > 60);
+
+    const sumCurrent = currentItems.reduce((sum, i) => sum + i.remainingAmount, 0);
+    const sum1to30 = late1to30.reduce((sum, i) => sum + i.remainingAmount, 0);
+    const sum31to60 = late31to60.reduce((sum, i) => sum + i.remainingAmount, 0);
+    const sumOver60 = lateOver60.reduce((sum, i) => sum + i.remainingAmount, 0);
+
+    const grandTotal = (sumCurrent + sum1to30 + sum31to60 + sumOver60) || 1;
+
+    return [
+      {
+        bucketKey: 'current' as const,
+        name: 'Belum Jatuh Tempo',
+        shortName: 'Belum Tempo',
+        amount: sumCurrent,
+        count: currentItems.length,
+        percentage: Number(((sumCurrent / grandTotal) * 100).toFixed(1)),
+        color: '#2563EB', // Blue-600
+        fillColor: '#3B82F6', // Blue-500
+        bgClass: 'bg-blue-50 text-blue-900 border-blue-200',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        badge: 'Lancar',
+        statusDesc: 'Masih dalam masa tenggang termin kredit',
+        recommendation: 'Jadwalkan konfirmasi tagihan H-3 jatuh tempo'
+      },
+      {
+        bucketKey: '1-30' as const,
+        name: '1-30 Hari',
+        shortName: '1-30 Hari',
+        amount: sum1to30,
+        count: late1to30.length,
+        percentage: Number(((sum1to30 / grandTotal) * 100).toFixed(1)),
+        color: '#D97706', // Amber-600
+        fillColor: '#F59E0B', // Amber-500
+        bgClass: 'bg-amber-50 text-amber-900 border-amber-200',
+        badgeColor: 'bg-amber-100 text-amber-800',
+        badge: 'Perlu Follow-up',
+        statusDesc: 'Lewat tempo 1 s/d 30 hari',
+        recommendation: 'Kirim pengingat ramah via WhatsApp / Telepon'
+      },
+      {
+        bucketKey: '31-60' as const,
+        name: '31-60 Hari',
+        shortName: '31-60 Hari',
+        amount: sum31to60,
+        count: late31to60.length,
+        percentage: Number(((sum31to60 / grandTotal) * 100).toFixed(1)),
+        color: '#EA580C', // Orange-600
+        fillColor: '#F97316', // Orange-500
+        bgClass: 'bg-orange-50 text-orange-900 border-orange-200',
+        badgeColor: 'bg-orange-100 text-orange-800',
+        badge: 'Perhatian Khusus',
+        statusDesc: 'Lewat tempo 31 s/d 60 hari',
+        recommendation: 'Kirim surat peringatan 1 & tunda pesanan kredit baru'
+      },
+      {
+        bucketKey: '>60' as const,
+        name: '>60 Hari',
+        shortName: '>60 Hari',
+        amount: sumOver60,
+        count: lateOver60.length,
+        percentage: Number(((sumOver60 / grandTotal) * 100).toFixed(1)),
+        color: '#DC2626', // Red-600
+        fillColor: '#EF4444', // Red-500
+        bgClass: 'bg-rose-50 text-rose-900 border-rose-200',
+        badgeColor: 'bg-rose-100 text-rose-800',
+        badge: 'Kritis / Macet',
+        statusDesc: 'Lewat tempo >60 hari',
+        recommendation: 'Eskalasi penagihan langsung / pembekuan fasilitas kredit'
+      }
+    ];
+  }, [unpaidReceivables]);
+
+  // Payment settlement action handler
+  const handleOpenPaymentModal = (item: any) => {
+    setSelectedReceivableForPayment(item);
+    setPaymentMode('full');
+    setPaymentAmountInput(item.remainingAmount);
+    setPaymentDateInput(new Date().toISOString().split('T')[0]);
+    setPaymentSourceAccount(1001);
+    const dateCode = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randCode = Math.floor(1000 + Math.random() * 9000);
+    setPaymentReceiptNumber(`BKM/${dateCode}/${randCode}`);
+    setPaymentNotesInput(`Pelunasan Penuh Tagihan ${item.invoiceNumber} — ${item.customerName}`);
+    setPaymentError(null);
+  };
+
+  const handleOpenReceiptFromHistory = (item: any, payRecord?: any) => {
+    const payAmount = payRecord ? payRecord.amount : (item.paidAmount || item.totalAmount);
+    const date = payRecord ? payRecord.date : (item.transactionDate || new Date().toISOString().split('T')[0]);
+    const receiptNo = (payRecord && payRecord.receiptNumber) || `BKM-${item.invoiceNumber.replace(/[^A-Za-z0-9]/g, '')}`;
+
+    setSettledReceiptData({
+      receiptNumber: receiptNo,
+      date,
+      customerName: item.customerName,
+      customerPhone: item.customerPhone || "-",
+      customerAddress: item.customerAddress || "-",
+      invoiceNumber: item.invoiceNumber,
+      amount: payAmount,
+      terbilang: angkaTerbilang(payAmount),
+      notes: (payRecord && payRecord.note) || `Bukti Kas Masuk / Pelunasan Piutang Faktur ${item.invoiceNumber}`,
+      originalTotal: item.totalAmount,
+      previousPaid: Math.max(0, item.totalAmount - item.remainingAmount - payAmount),
+      currentPayment: payAmount,
+      newRemaining: item.remainingAmount,
+      isFull: item.remainingAmount <= 0,
+      paymentMethod: (payRecord && payRecord.accountName) || "1001 Kas & Setara Kas (Tunai/Kasir)"
+    });
+    setShowReceiptModal(true);
+  };
+
+  const handleConfirmPayment = () => {
+    if (!selectedReceivableForPayment) return;
+    if (paymentAmountInput <= 0) {
+      setPaymentError("Jumlah pembayaran harus lebih besar dari Rp 0!");
+      return;
+    }
+    if (paymentAmountInput > selectedReceivableForPayment.remainingAmount) {
+      setPaymentError(`Jumlah pembayaran (Rp ${paymentAmountInput.toLocaleString('id-ID')}) tidak boleh melebihi sisa piutang (Rp ${selectedReceivableForPayment.remainingAmount.toLocaleString('id-ID')})!`);
+      return;
+    }
+    setPaymentError(null);
+
+    const payAmount = paymentAmountInput;
+    const isFullSettlement = payAmount >= selectedReceivableForPayment.remainingAmount;
+    const receiptNo = paymentReceiptNumber.trim() || `BKM/${new Date().getFullYear()}/${Date.now().toString().slice(-5)}`;
+    const newRemaining = Math.max(0, selectedReceivableForPayment.remainingAmount - payAmount);
+    const newPaidTotal = (selectedReceivableForPayment.paidAmount || 0) + payAmount;
+    const resolvedStatus: 'paid' | 'partial' = newRemaining <= 0 ? 'paid' : 'partial';
+
+    // 1. Create double-entry receipt transaction (Debit Kas 1001, Credit Piutang Usaha 1002)
+    const newReceiptTx: Transaction = {
+      id: `rcp-${Date.now()}`,
+      date: paymentDateInput,
+      description: paymentNotesInput.trim() || `Pelunasan Piutang ${selectedReceivableForPayment.invoiceNumber} — ${selectedReceivableForPayment.customerName}`,
+      amount: payAmount,
+      type: 'Penerimaan',
+      ppnEnabled: false,
+      ppnAmount: 0,
+      debitAccount: paymentSourceAccount, // 1001 Kas & Setara Kas
+      creditAccount: 1002, // 1002 Piutang Usaha
+      invoiceNumber: selectedReceivableForPayment.invoiceNumber,
+      customerName: selectedReceivableForPayment.customerName,
+      customerPhone: selectedReceivableForPayment.customerPhone,
+      customerAddress: selectedReceivableForPayment.customerAddress,
+      receiptNumber: receiptNo
+    };
+
+    // 2. Update existing transactions
+    let updatedTxs = [...transactions];
+    const matchTxIndex = updatedTxs.findIndex(t => 
+      t.id === selectedReceivableForPayment.originalTxId || 
+      t.invoiceNumber === selectedReceivableForPayment.invoiceNumber
+    );
+
+    const newPaymentHistoryEntry = {
+      id: `pay-${Date.now()}`,
+      date: paymentDateInput,
+      amount: payAmount,
+      receiptNumber: receiptNo,
+      accountName: paymentSourceAccount === 1001 ? "1001 Kas & Setara Kas (Tunai/Kasir)" : `Akun ${paymentSourceAccount}`,
+      note: paymentNotesInput.trim() || (isFullSettlement ? "Pelunasan Penuh (100%)" : "Pembayaran Parsial / Cicilan")
+    };
+
+    if (matchTxIndex >= 0) {
+      const target = updatedTxs[matchTxIndex];
+      const prevHistory = target.paymentHistory || [];
+      updatedTxs[matchTxIndex] = {
+        ...target,
+        paidAmount: newPaidTotal,
+        remainingAmount: newRemaining,
+        status: resolvedStatus,
+        paymentHistory: [...prevHistory, newPaymentHistoryEntry]
+      };
+    } else {
+      // Materialize base credit sale transaction if from virtual demo
+      const baseCreditTx: Transaction = {
+        id: selectedReceivableForPayment.originalTxId || `tx-cred-${Date.now()}`,
+        date: selectedReceivableForPayment.transactionDate,
+        dueDate: selectedReceivableForPayment.dueDate,
+        invoiceNumber: selectedReceivableForPayment.invoiceNumber,
+        customerName: selectedReceivableForPayment.customerName,
+        customerPhone: selectedReceivableForPayment.customerPhone,
+        customerAddress: selectedReceivableForPayment.customerAddress,
+        description: selectedReceivableForPayment.description || `Penjualan Kredit — ${selectedReceivableForPayment.customerName}`,
+        amount: selectedReceivableForPayment.totalAmount,
+        paidAmount: newPaidTotal,
+        remainingAmount: newRemaining,
+        type: 'Penjualan Kredit',
+        isCreditSale: true,
+        status: resolvedStatus,
+        ppnEnabled: false,
+        ppnAmount: 0,
+        debitAccount: 1002, // Piutang Usaha
+        creditAccount: 4001, // Pendapatan Penjualan
+        paymentHistory: [newPaymentHistoryEntry]
+      };
+      updatedTxs.push(baseCreditTx);
+    }
+
+    // Add receipt transaction
+    updatedTxs.push(newReceiptTx);
+
+    if (onUpdateTransactions) {
+      onUpdateTransactions(updatedTxs);
+    } else if (onImportTransactions) {
+      onImportTransactions(updatedTxs, stockItems);
+    } else {
+      localStorage.setItem("akuntan_ai_tx_v1", JSON.stringify(updatedTxs));
+    }
+
+    // 3. Update invoice in localStorage if applicable
+    if (selectedReceivableForPayment.source === 'invoice') {
+      const updatedInvoices = invoices.map(inv => {
+        if (inv.id === selectedReceivableForPayment.id || inv.invoiceNumber === selectedReceivableForPayment.invoiceNumber) {
+          return {
+            ...inv,
+            paidAmount: newPaidTotal,
+            remainingAmount: newRemaining,
+            status: resolvedStatus,
+            payments: [
+              ...(inv.payments || []),
+              {
+                id: `pay-${Date.now()}`,
+                paymentNumber: receiptNo,
+                date: paymentDateInput,
+                amount: payAmount,
+                accountId: paymentSourceAccount,
+                accountName: paymentSourceAccount === 1001 ? "1001 Kas & Setara Kas" : `Akun ${paymentSourceAccount}`,
+                reference: paymentNotesInput.trim() || (isFullSettlement ? "Pelunasan Penuh" : "Pembayaran Sebagian"),
+                createdAt: new Date().toISOString()
+              }
+            ]
+          };
+        }
+        return inv;
+      });
+      setInvoices(updatedInvoices);
+      localStorage.setItem("akuntan_invoices_v1", JSON.stringify(updatedInvoices));
+    }
+
+    // Prepare receipt voucher for instant viewing/printing
+    const receiptData = {
+      receiptNumber: receiptNo,
+      date: paymentDateInput,
+      customerName: selectedReceivableForPayment.customerName,
+      customerPhone: selectedReceivableForPayment.customerPhone,
+      customerAddress: selectedReceivableForPayment.customerAddress,
+      invoiceNumber: selectedReceivableForPayment.invoiceNumber,
+      amount: payAmount,
+      terbilang: angkaTerbilang(payAmount),
+      notes: paymentNotesInput.trim() || `Pelunasan ${isFullSettlement ? 'Penuh' : 'Sebagian'} Tagihan Faktur ${selectedReceivableForPayment.invoiceNumber}`,
+      originalTotal: selectedReceivableForPayment.totalAmount,
+      previousPaid: selectedReceivableForPayment.paidAmount || 0,
+      currentPayment: payAmount,
+      newRemaining: newRemaining,
+      isFull: isFullSettlement,
+      paymentMethod: paymentSourceAccount === 1001 ? "Kas & Setara Kas (Tunai/Kasir)" : `Akun Kas Bank (${paymentSourceAccount})`
+    };
+
+    setSettledReceiptData(receiptData);
+    setPaymentSuccessMessage(
+      `Pembayaran ${isFullSettlement ? 'Lunas Penuh (100%)' : 'Parsial / Sebagian'} sebesar Rp ${payAmount.toLocaleString('id-ID')} untuk ${selectedReceivableForPayment.customerName} (${selectedReceivableForPayment.invoiceNumber}) berhasil dibukukan! Kas bertambah dan saldo piutang di Neraca otomatis berkurang.`
+    );
+    setSelectedReceivableForPayment(null);
+  };
 
   // Generates structured, 100% compliant ReportData for dedicated PrintTemplate component
   const generateA4ReportData = (reportType: string): ReportData => {
@@ -416,6 +1057,99 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
       };
     }
 
+    if (reportType === 'piutang') {
+      const activeUnpaid = creditSalesReceivables.filter(inv => inv.remainingAmount > 0);
+      const rows = (activeUnpaid.length > 0 ? activeUnpaid : creditSalesReceivables).map(inv => ({
+        code: inv.invoiceNumber,
+        name: inv.customerName,
+        phone: inv.customerPhone || "-",
+        dueDate: inv.dueDate,
+        agingCategory: inv.agingCategory,
+        totalAmount: inv.totalAmount,
+        paidAmount: inv.paidAmount,
+        remainingAmount: inv.remainingAmount
+      }));
+
+      return {
+        title: "DAFTAR PIUTANG PELANGGAN (ACCOUNTS RECEIVABLE)",
+        subtitle: "Rekapitulasi Saldo Penjualan Kredit Belum Lunas, Jatuh Tempo & Analisis Umur Piutang (Aging SAK EMKM)",
+        period: `Posisi: ${periodLabel}`,
+        storeConfig,
+        columns: [
+          { key: "code", label: "No. Bukti / Faktur", width: "105px", align: "center" },
+          { 
+            key: "name", 
+            label: "Pelanggan & Kontak",
+            render: (_v: any, row: any) => (
+              <div>
+                <span className="font-bold text-slate-900">{row.name}</span>
+                <span className="text-[10px] text-slate-500 font-mono ml-2">({row.phone})</span>
+              </div>
+            )
+          },
+          { key: "dueDate", label: "Jatuh Tempo", width: "105px", align: "center" },
+          { 
+            key: "agingCategory", 
+            label: "Umur Piutang (Aging)", 
+            width: "145px", 
+            align: "center",
+            render: (v: string) => {
+              const isLate = v.includes("Lewat");
+              return (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isLate ? "bg-rose-100 text-rose-800" : v === "Lunas" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
+                }`}>
+                  {v}
+                </span>
+              );
+            }
+          },
+          { 
+            key: "totalAmount", 
+            label: "Nilai Penjualan (Rp)", 
+            width: "125px", 
+            align: "right",
+            render: (v: number) => <span className="font-mono">{(v || 0).toLocaleString("id-ID")}</span>
+          },
+          { 
+            key: "paidAmount", 
+            label: "Terbayar (Rp)", 
+            width: "120px", 
+            align: "right",
+            render: (v: number) => <span className="font-mono text-emerald-700">{(v || 0).toLocaleString("id-ID")}</span>
+          },
+          { 
+            key: "remainingAmount", 
+            label: "Sisa Piutang (Rp)", 
+            width: "135px", 
+            align: "right",
+            render: (v: number) => (
+              <span className={`font-mono font-bold ${v > 0 ? "text-rose-700" : "text-slate-400"}`}>
+                {(v || 0).toLocaleString("id-ID")}
+              </span>
+            )
+          }
+        ],
+        rows,
+        summaryItems: [
+          { label: "Total Transaksi Penjualan Kredit", value: `${creditSalesReceivables.length} Transaksi`, color: "blue" },
+          { label: "Total Penjualan Kredit", value: totalAllInvoiced, color: "indigo" },
+          { label: "Penerimaan Pelunasan Kas", value: totalAllPaid, color: "emerald" },
+          { label: "Piutang Belum Jatuh Tempo (Lancar)", value: totalCurrentPiutang, color: "blue" },
+          { label: "Piutang Lewat Jatuh Tempo (Aging)", value: totalOverduePiutang, color: "rose" },
+          { label: "Total Sisa Piutang Belum Lunas", value: totalOutstandingPiutang, color: "rose", highlight: true }
+        ],
+        grandTotalLabel: "TOTAL SISA PIUTANG PELANGGAN BELUM LUNAS (SAK EMKM):",
+        grandTotalValue: totalOutstandingPiutang,
+        notes: [
+          "Daftar Piutang Pelanggan menyajikan saldo tagihan dari transaksi penjualan kredit yang belum dilunasi oleh pelanggan.",
+          "Analisis Umur Piutang (Aging) dihitung otomatis berdasarkan tanggal jatuh tempo yang tertera pada bukti transaksi/faktur.",
+          "Sesuai ketentuan Bab 8 SAK EMKM, piutang diakui sebesar jumlah bruto tagihan dan diuji ketertagihannya secara berkala."
+        ],
+        signatures: commonSignatures
+      };
+    }
+
     // Default: Laba Rugi
     const operatingExpenses = CHART_OF_ACCOUNTS.filter(a => a.id >= 6000 && a.id <= 6999).map((acc) => {
       const balanceItem = trialBalance.find(t => t.accountId === acc.id);
@@ -493,7 +1227,13 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
     selectedYear, 
     selectedMonth, 
     customStartDate, 
-    customEndDate
+    customEndDate,
+    invoices,
+    creditSalesReceivables,
+    totalOutstandingPiutang,
+    totalOverduePiutang,
+    totalAllInvoiced,
+    totalAllPaid
   ]);
 
   // Triggers dedicated PrintTemplate in modal preview mode
@@ -630,38 +1370,6 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
 
   const ReportHeader = ({ title, subtitle }: { title: string; subtitle: string }) => (
     <>
-      {/* IN-REPORT PRINT ACTION BAR (HIDDEN ON PRINT) */}
-      <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-6 text-xs">
-        <div className="flex items-center gap-2 text-slate-700">
-          <Printer className="w-4 h-4 text-slate-900 shrink-0" />
-          <span><strong>Siap Cetak / Unduh PDF:</strong> Format A4 resmi dengan Kop Surat usaha, tabel akun, dan kolom tanda tangan ({getPeriodLabel()}).</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setDisplayMode(prev => prev === 'print-sheet' ? 'standard' : 'print-sheet')}
-            className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg font-bold transition cursor-pointer border text-xs ${
-              displayMode === 'print-sheet'
-                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
-                : 'bg-white hover:bg-indigo-50 text-indigo-900 border-indigo-200 shadow-2xs'
-            }`}
-            title="Beralih ke tampilan Lembar Cetak Dokumen A4 langsung di halaman"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>{displayMode === 'print-sheet' ? 'Tampilan Ringkas' : 'Mode Cetak Dokumen (A4)'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold transition cursor-pointer shadow-xs whitespace-nowrap active:scale-95 text-xs"
-            title="Buka Pratinjau Modal Cetak & Unduh PDF"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Cetak Dokumen Ini</span>
-          </button>
-        </div>
-      </div>
-
       {/* OFFICIAL KOP SURAT HEADER */}
       <div className="border-b-2 border-slate-900 pb-4 mb-6">
         <div className="flex justify-between items-start">
@@ -998,63 +1706,36 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
         )}
       </div>
 
-      {/* TOP HEADER SELECTOR & CONTROL ACTIONS */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 bg-white p-4 rounded-xl shadow-xs no-print">
-        {/* Toggle choices */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setActiveReport('labarugi')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              activeReport === 'labarugi' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Laporan Laba Rugi
-          </button>
-          <button
-            onClick={() => setActiveReport('neraca')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              activeReport === 'neraca' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Laporan Neraca SAK EMKM
-          </button>
-          <button
-            onClick={() => setActiveReport('aruskas')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              activeReport === 'aruskas' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Arus Kas (Metode Langsung)
-          </button>
-          <button
-            onClick={() => setActiveReport('neracasaldo')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              activeReport === 'neracasaldo' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Neraca Saldo (Trial Balance)
-          </button>
-          <button
-            onClick={() => setActiveReport('import')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-              activeReport === 'import' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-            }`}
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Import Excel (.xlsx)
-          </button>
-          <button
-            onClick={() => setActiveReport('ekspor')}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              activeReport === 'ekspor' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
-            }`}
-          >
-            Ekspor Microsoft Excel
-          </button>
+      {/* TOP HEADER & CONTROL ACTIONS (LAYAR BERSIH - NAVIGASI DI BILAH KIRI) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 bg-white p-4 rounded-xl shadow-xs no-print">
+        {/* Active Report Title & Compliance Badge (Ikon Dihilangkan Sesuai Permintaan) */}
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+              {activeReport === 'labarugi' && "Laporan Laba Rugi"}
+              {activeReport === 'neraca' && "Laporan Posisi Keuangan (Neraca)"}
+              {activeReport === 'aruskas' && "Laporan Arus Kas (Metode Langsung)"}
+              {activeReport === 'neracasaldo' && "Neraca Saldo (Trial Balance)"}
+              {activeReport === 'piutang' && "Daftar Piutang Pelanggan & Aging"}
+              {activeReport === 'import' && "Import Data Transaksi Excel (.xlsx)"}
+              {activeReport === 'ekspor' && "Unduh Workbook Keuangan Excel (.xlsx)"}
+            </h2>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              SAK EMKM
+            </span>
+            {activeReport === 'piutang' && unpaidReceivables.length > 0 && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                {unpaidReceivables.length} Tagihan Belum Lunas
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Posisi Periode: <span className="font-semibold text-slate-700">{getPeriodLabel()}</span> • Ganti laporan melalui menu di sebelah kiri
+          </p>
         </div>
 
-        {/* Quick action buttons */}
-        <div className="flex flex-wrap items-center gap-2 font-semibold">
+        {/* Action Buttons for Active Report */}
+        <div className="flex flex-wrap items-center gap-2 font-semibold shrink-0">
           {/* Mode Cetak Dokumen (A4) / Tampilan Ringkas Toggle */}
           {activeReport !== 'import' && activeReport !== 'ekspor' && (
             <button
@@ -1082,18 +1763,10 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
           )}
 
           <button
-            onClick={() => setActiveReport('import')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
-            title="Import data dari file Excel yang sudah diekspor sebelumnya"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Import .XLS
-          </button>
-          <button
             onClick={handleExcelExport}
             disabled={exportState?.loading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-lg text-xs transition cursor-pointer shadow-xs"
-            title="Ekspor laporan aktif ke file Excel (.xlsx)"
+            className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+            title="Ekspor seluruh laporan aktif ke file Excel (.xlsx)"
           >
             {exportState?.loading ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1102,14 +1775,17 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
             )}
             <span>{exportState?.loading ? "Menyiapkan..." : "Ekspor .XLS"}</span>
           </button>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
-            title="Cetak Laporan ke Printer atau Simpan sebagai Dokumen PDF"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Cetak PDF
-          </button>
+
+          {activeReport !== 'import' && activeReport !== 'ekspor' && (
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+              title="Cetak Laporan ke Printer atau Simpan sebagai Dokumen PDF"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Cetak PDF
+            </button>
+          )}
         </div>
       </div>
 
@@ -1854,6 +2530,1220 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
 
               {/* OFFICIAL SIGNATURE BLOCK FOR PRINT */}
               <ReportSignature />
+            </div>
+          )}
+
+          {/* DAFTAR PIUTANG PELANGGAN (ACCOUNTS RECEIVABLE) VIEW */}
+          {activeReport === 'piutang' && (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-xs space-y-6 printable-area" id="piutang-report-view">
+              <ReportHeader
+                title="DAFTAR PIUTANG PELANGGAN (ACCOUNTS RECEIVABLE)"
+                subtitle={`Posisi Per: ${getPeriodLabel()} • Rekapitulasi Penjualan Kredit Belum Lunas & Analisis Umur Piutang (Aging SAK EMKM)`}
+              />
+
+              {/* Payment Success Notification */}
+              {paymentSuccessMessage && (
+                <div className="no-print p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 animate-fadeIn shadow-2xs">
+                  <div className="flex items-start gap-2.5">
+                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-bold text-emerald-950 flex items-center gap-1.5">
+                        <span>Pelunasan Piutang Berhasil Dibukukan!</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-200 text-emerald-900 font-extrabold uppercase">
+                          Kas Bertambah • Piutang Berkurang
+                        </span>
+                      </div>
+                      <p className="text-emerald-800 mt-1 leading-relaxed">{paymentSuccessMessage}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    {settledReceiptData && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReceiptModal(true)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition cursor-pointer shadow-2xs flex items-center gap-1.5"
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>Cetak Bukti Kas Masuk (BKM)</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveReport('neraca')}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-lg font-bold text-xs transition cursor-pointer"
+                    >
+                      Cek Neraca
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentSuccessMessage(null)}
+                      className="p-1 text-emerald-700 hover:bg-emerald-100 rounded-lg cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 1. TOP METRIC CARDS */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="p-4 bg-rose-50/70 border border-rose-200 rounded-xl text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800">Total Sisa Piutang Belum Lunas</span>
+                    <CreditCard className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <p className="text-lg sm:text-xl font-black font-mono text-rose-950 mt-1">
+                    Rp {totalOutstandingPiutang.toLocaleString("id-ID")}
+                  </p>
+                  <p className="text-[10px] text-rose-700 mt-0.5">{unpaidReceivables.length} transaksi belum lunas</p>
+                </div>
+
+                <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-xl text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">Belum Jatuh Tempo (Lancar)</span>
+                    <Clock className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <p className="text-lg sm:text-xl font-black font-mono text-blue-950 mt-1">
+                    Rp {totalCurrentPiutang.toLocaleString("id-ID")}
+                  </p>
+                  <p className="text-[10px] text-blue-700 mt-0.5">Masih dalam masa tenggang termin</p>
+                </div>
+
+                <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Lewat Jatuh Tempo (Aging Overdue)</span>
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <p className="text-lg sm:text-xl font-black font-mono text-amber-950 mt-1">
+                    Rp {totalOverduePiutang.toLocaleString("id-ID")}
+                  </p>
+                  <p className="text-[10px] text-amber-700 mt-0.5">{unpaidReceivables.filter(i => i.isOverdue).length} tagihan perlu penagihan</p>
+                </div>
+
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Total Penjualan Kredit</span>
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <p className="text-lg sm:text-xl font-black font-mono text-emerald-950 mt-1">
+                    Rp {totalAllInvoiced.toLocaleString("id-ID")}
+                  </p>
+                  <p className="text-[10px] text-emerald-700 mt-0.5">Kas Masuk: Rp {totalAllPaid.toLocaleString("id-ID")}</p>
+                </div>
+              </div>
+
+              {/* 2. VISUALISASI CHART DISTRIBUSI UMUR PIUTANG (RECHARTS SAK EMKM) */}
+              <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-5">
+                {/* Header & View Mode Switcher */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3.5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
+                        <BarChart3 className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Distribusi Umur Piutang Pelanggan (Aging Schedule)
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Visualisasi proporsi nominal dan risiko kolektibilitas per kelompok jatuh tempo (SAK EMKM)
+                    </p>
+                  </div>
+
+                  {/* Chart View Switcher */}
+                  <div className="no-print flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setPiutangChartView('both')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                        piutangChartView === 'both'
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                      title="Tampilkan grafik batang dan donat berdampingan"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Kedua Grafik</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPiutangChartView('bar')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                        piutangChartView === 'bar'
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                      title="Tampilkan grafik batang (Nominal Rp)"
+                    >
+                      <BarChart3 className="w-3 h-3" />
+                      <span>Bilah (Rp)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPiutangChartView('donut')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                        piutangChartView === 'donut'
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                      title="Tampilkan grafik donat (Persentase %)"
+                    >
+                      <PieChartIcon className="w-3 h-3" />
+                      <span>Donat (%)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recharts Visual Canvas */}
+                {totalOutstandingPiutang > 0 ? (
+                  <div className={`grid gap-4 ${piutangChartView === 'both' ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
+                    {/* Bar Chart (Nominal Distribusi) */}
+                    {(piutangChartView === 'both' || piutangChartView === 'bar') && (
+                      <div className={`bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between ${
+                        piutangChartView === 'both' ? 'lg:col-span-7' : 'w-full'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                            Nominal Sisa Piutang per Bucket Umur
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Klik bilah untuk filter tabel
+                          </span>
+                        </div>
+
+                        <div className="w-full h-56 min-h-[220px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={agingChartData}
+                              margin={{ top: 12, right: 12, left: -10, bottom: 4 }}
+                              onClick={(state: any) => {
+                                if (state && state.activePayload && state.activePayload.length) {
+                                  const clickedKey = state.activePayload[0].payload.bucketKey;
+                                  setPiutangAgingFilter(clickedKey);
+                                }
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                              <XAxis
+                                dataKey="name"
+                                tickLine={false}
+                                axisLine={{ stroke: "#E2E8F0" }}
+                                tick={{ fill: "#475569", fontSize: 10, fontWeight: 600 }}
+                              />
+                              <YAxis
+                                tickLine={false}
+                                axisLine={{ stroke: "#E2E8F0" }}
+                                tick={{ fill: "#64748B", fontSize: 10, fontFamily: "monospace" }}
+                                tickFormatter={(val) => {
+                                  if (val >= 1000000) return `${(val / 1000000).toFixed(1)}jt`;
+                                  if (val >= 1000) return `${(val / 1000).toFixed(0)}rb`;
+                                  return `${val}`;
+                                }}
+                              />
+                              <RechartsTooltip
+                                content={({ active, payload }: any) => {
+                                  if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                      <div className="bg-slate-900/95 backdrop-blur-xs text-white p-3 rounded-xl shadow-2xl border border-slate-700 text-xs space-y-1.5 min-w-[220px] z-50">
+                                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                          <div className="flex items-center gap-1.5 font-bold">
+                                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color }} />
+                                            <span>{data.name}</span>
+                                          </div>
+                                          <span className="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-800 text-slate-300">
+                                            {data.badge}
+                                          </span>
+                                        </div>
+                                        <div className="space-y-1 pt-0.5">
+                                          <div className="flex justify-between items-center text-slate-300 text-[11px]">
+                                            <span>Sisa Piutang:</span>
+                                            <span className="font-mono font-bold text-white text-xs">
+                                              Rp {(data.amount || 0).toLocaleString("id-ID")}
+                                            </span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-slate-300 text-[11px]">
+                                            <span>Jumlah Tagihan:</span>
+                                            <span className="font-bold text-slate-100">{data.count} Transaksi</span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-slate-300 text-[11px]">
+                                            <span>Porsi Distribusi:</span>
+                                            <span className="font-bold text-emerald-400">{data.percentage}%</span>
+                                          </div>
+                                        </div>
+                                        <div className="pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 leading-tight">
+                                          💡 {data.recommendation}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                }}
+                              />
+                              <Bar
+                                dataKey="amount"
+                                radius={[6, 6, 0, 0]}
+                                cursor="pointer"
+                                animationDuration={700}
+                              >
+                                {agingChartData.map((entry, index) => (
+                                  <Cell
+                                    key={`bar-cell-${index}`}
+                                    fill={entry.color}
+                                    opacity={piutangAgingFilter === 'all' || piutangAgingFilter === entry.bucketKey ? 1 : 0.35}
+                                  />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Donut Chart (Komposisi Persentase) */}
+                    {(piutangChartView === 'both' || piutangChartView === 'donut') && (
+                      <div className={`bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between ${
+                        piutangChartView === 'both' ? 'lg:col-span-5' : 'w-full'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                            Proporsi Umur Piutang (%)
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Total: Rp {totalOutstandingPiutang.toLocaleString("id-ID")}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 py-1">
+                          <div className="w-40 h-48 relative flex items-center justify-center shrink-0">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <RechartsTooltip
+                                  content={({ active, payload }: any) => {
+                                    if (active && payload && payload.length) {
+                                      const data = payload[0].payload;
+                                      return (
+                                        <div className="bg-slate-900/95 backdrop-blur-xs text-white p-2.5 rounded-xl shadow-xl border border-slate-700 text-xs">
+                                          <div className="font-bold flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }} />
+                                            <span>{data.name}</span>
+                                          </div>
+                                          <div className="text-[11px] text-slate-300 mt-1">
+                                            Rp {(data.amount || 0).toLocaleString("id-ID")} ({data.percentage}%)
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  }}
+                                />
+                                <Pie
+                                  data={agingChartData}
+                                  dataKey="amount"
+                                  nameKey="name"
+                                  innerRadius={46}
+                                  outerRadius={74}
+                                  paddingAngle={3}
+                                  cursor="pointer"
+                                  onClick={(entry: any) => {
+                                    if (entry && entry.bucketKey) {
+                                      setPiutangAgingFilter(entry.bucketKey);
+                                    }
+                                  }}
+                                >
+                                  {agingChartData.map((entry, index) => (
+                                    <Cell
+                                      key={`pie-cell-${index}`}
+                                      fill={entry.color}
+                                      opacity={piutangAgingFilter === 'all' || piutangAgingFilter === entry.bucketKey ? 1 : 0.35}
+                                    />
+                                  ))}
+                                </Pie>
+                              </PieChart>
+                            </ResponsiveContainer>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                              <span className="text-[9px] uppercase tracking-wider font-bold text-slate-400">Total Piutang</span>
+                              <span className="text-xs font-mono font-black text-slate-800">
+                                {totalOutstandingPiutang >= 1000000
+                                  ? `${(totalOutstandingPiutang / 1000000).toFixed(1)}jt`
+                                  : `Rp ${(totalOutstandingPiutang / 1000).toFixed(0)}k`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Legend breakdown list */}
+                          <div className="space-y-1.5 w-full text-xs">
+                            {agingChartData.map((item) => (
+                              <button
+                                key={item.bucketKey}
+                                type="button"
+                                onClick={() => setPiutangAgingFilter(piutangAgingFilter === item.bucketKey ? 'all' : item.bucketKey)}
+                                className={`w-full flex items-center justify-between p-1.5 rounded-lg transition text-left cursor-pointer ${
+                                  piutangAgingFilter === item.bucketKey ? 'bg-slate-100 font-bold ring-1 ring-slate-300' : 'hover:bg-slate-50'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: item.color }} />
+                                  <span className="text-[11px] text-slate-700 truncate">{item.name}</span>
+                                </div>
+                                <div className="text-right shrink-0 font-mono text-[11px]">
+                                  <span className="font-bold text-slate-900">{item.percentage}%</span>
+                                  <span className="text-slate-400 text-[10px] ml-1">({item.count})</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 text-center space-y-2">
+                    <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto" />
+                    <div className="text-sm font-bold text-slate-800">Seluruh Piutang Pelanggan Lunas!</div>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Tidak ada tagihan penjualan kredit yang tertunggak. Arus kas piutang berada pada tingkat likuiditas 100%.
+                    </p>
+                  </div>
+                )}
+
+                {/* 4 KATEGORI BUCKET AGING SCHEDULE CARDS (INTERACTIVE FILTER) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {agingChartData.map((bucket) => {
+                    const isSelected = piutangAgingFilter === bucket.bucketKey;
+                    return (
+                      <div
+                        key={bucket.bucketKey}
+                        onClick={() => setPiutangAgingFilter(isSelected ? 'all' : bucket.bucketKey)}
+                        className={`bg-white p-3.5 rounded-xl border transition cursor-pointer select-none relative group hover:shadow-xs ${
+                          isSelected
+                            ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/20'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: bucket.color }} />
+                            <span>{bucket.name}</span>
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${bucket.badgeColor}`}>
+                            {bucket.badge}
+                          </span>
+                        </div>
+
+                        <div className="mt-2">
+                          <div className="font-mono font-black text-base text-slate-900">
+                            Rp {bucket.amount.toLocaleString("id-ID")}
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                            <span>{bucket.count} tagihan / faktur</span>
+                            <span className="font-bold text-slate-700 font-mono">{bucket.percentage}% porsi</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                          <span className="text-slate-500 truncate">{bucket.statusDesc}</span>
+                          <span className={`font-semibold shrink-0 ml-1 ${isSelected ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                            {isSelected ? '✓ Aktif' : 'Pilih'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. FILTER BAR (HIDDEN ON PRINT) */}
+              <div className="no-print space-y-2.5 pt-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Status Filter */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-bold text-slate-600 mr-1">Status:</span>
+                    <button
+                      onClick={() => setPiutangStatusFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        piutangStatusFilter === 'all'
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      Semua ({creditSalesReceivables.length})
+                    </button>
+                    <button
+                      onClick={() => setPiutangStatusFilter('unpaid')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        piutangStatusFilter === 'unpaid'
+                          ? 'bg-rose-700 text-white'
+                          : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}
+                    >
+                      Belum Lunas ({unpaidReceivables.length})
+                    </button>
+                    <button
+                      onClick={() => setPiutangStatusFilter('overdue')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        piutangStatusFilter === 'overdue'
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      Lewat Tempo ({unpaidReceivables.filter(i => i.isOverdue).length})
+                    </button>
+                    <button
+                      onClick={() => setPiutangStatusFilter('paid')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        piutangStatusFilter === 'paid'
+                          ? 'bg-emerald-700 text-white'
+                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}
+                    >
+                      Lunas ({creditSalesReceivables.filter(i => i.remainingAmount === 0).length})
+                    </button>
+                  </div>
+
+                  {/* Search box */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Cari pelanggan / no faktur / bukti..."
+                      value={piutangSearch}
+                      onChange={(e) => setPiutangSearch(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-slate-400 w-full sm:w-64 bg-white"
+                    />
+                    {piutangSearch && (
+                      <button
+                        onClick={() => setPiutangSearch("")}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Aging Bucket Pills Filter */}
+                <div className="flex items-center gap-1.5 flex-wrap text-xs pt-1 border-t border-slate-100">
+                  <span className="text-[11px] font-bold text-slate-600 mr-1 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-indigo-600" />
+                    Umur Piutang (Aging):
+                  </span>
+                  <button
+                    onClick={() => setPiutangAgingFilter('all')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      piutangAgingFilter === 'all'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    Semua Umur
+                  </button>
+                  <button
+                    onClick={() => setPiutangAgingFilter('current')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      piutangAgingFilter === 'current'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+                    }`}
+                  >
+                    Belum Jatuh Tempo (Lancar)
+                  </button>
+                  <button
+                    onClick={() => setPiutangAgingFilter('1-30')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      piutangAgingFilter === '1-30'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                    }`}
+                  >
+                    Lewat 1 - 30 Hari
+                  </button>
+                  <button
+                    onClick={() => setPiutangAgingFilter('31-60')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      piutangAgingFilter === '31-60'
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-orange-50 text-orange-800 hover:bg-orange-100'
+                    }`}
+                  >
+                    Lewat 31 - 60 Hari
+                  </button>
+                  <button
+                    onClick={() => setPiutangAgingFilter('>60')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      piutangAgingFilter === '>60'
+                        ? 'bg-rose-700 text-white'
+                        : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                    }`}
+                  >
+                    Lewat &gt; 60 Hari
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. MAIN RECEIVABLES TABLE */}
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200 text-[10px]">
+                    <tr>
+                      <th className="py-3 px-3.5 w-28">No. Bukti / Faktur</th>
+                      <th className="py-3 px-3.5">Pelanggan &amp; Kontak</th>
+                      <th className="py-3 px-3.5 w-24">Tgl Transaksi</th>
+                      <th className="py-3 px-3.5 w-24">Jatuh Tempo</th>
+                      <th className="py-3 px-3.5 text-center w-36">Status &amp; Umur (Aging)</th>
+                      <th className="py-3 px-3.5 text-right w-28">Nilai Penjualan</th>
+                      <th className="py-3 px-3.5 text-right w-24">Terbayar</th>
+                      <th className="py-3 px-3.5 text-right w-32">Sisa Piutang</th>
+                      <th className="py-3 px-3.5 text-center w-28 no-print">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {creditSalesReceivables
+                      .filter(inv => {
+                        if (piutangStatusFilter === 'unpaid') return inv.remainingAmount > 0;
+                        if (piutangStatusFilter === 'overdue') return inv.isOverdue;
+                        if (piutangStatusFilter === 'paid') return inv.remainingAmount === 0;
+                        return true;
+                      })
+                      .filter(inv => {
+                        if (piutangAgingFilter === 'all') return true;
+                        return inv.agingBucket === piutangAgingFilter;
+                      })
+                      .filter(inv => {
+                        if (!piutangSearch.trim()) return true;
+                        const q = piutangSearch.toLowerCase();
+                        return (
+                          inv.invoiceNumber.toLowerCase().includes(q) ||
+                          inv.customerName.toLowerCase().includes(q) ||
+                          (inv.customerPhone && inv.customerPhone.includes(q)) ||
+                          (inv.description && inv.description.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-slate-900">
+                            <div className="flex items-center gap-1.5">
+                              <span>{inv.invoiceNumber}</span>
+                              <span className="text-[9px] px-1 py-0.2 bg-slate-100 text-slate-600 rounded">
+                                {inv.source === 'transaction' ? 'Jurnal' : 'Faktur'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3.5">
+                            <div className="font-bold text-slate-800">{inv.customerName}</div>
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                              {inv.customerPhone && inv.customerPhone !== "-" && <span>{inv.customerPhone}</span>}
+                              {inv.customerAddress && inv.customerAddress !== "-" && <span>• {inv.customerAddress}</span>}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3.5 font-mono text-slate-600 text-[11px]">
+                            {inv.transactionDate}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-mono text-slate-600 text-[11px]">
+                            {inv.dueDate}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-center">
+                            {inv.remainingAmount === 0 ? (
+                              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                <Check className="w-3 h-3" />
+                                Lunas
+                              </span>
+                            ) : inv.isOverdue ? (
+                              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                Lewat {inv.diffDays} Hari
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                <Clock className="w-3 h-3 text-blue-600" />
+                                Tempo {Math.abs(inv.diffDays)} Hari
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono font-medium text-slate-800">
+                            Rp {inv.totalAmount.toLocaleString("id-ID")}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono font-medium text-emerald-700">
+                            Rp {inv.paidAmount.toLocaleString("id-ID")}
+                          </td>
+                          <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">
+                            <span className={inv.remainingAmount > 0 ? "text-rose-700 font-black" : "text-slate-400"}>
+                              Rp {inv.remainingAmount.toLocaleString("id-ID")}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3.5 text-center no-print">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              {inv.remainingAmount > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPaymentModal(inv)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <CreditCard className="w-3 h-3" />
+                                  <span>Catat Pelunasan</span>
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
+                                  <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                  Lunas 100%
+                                </span>
+                              )}
+
+                              {inv.paidAmount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReceiptFromHistory(inv)}
+                                  className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition cursor-pointer border border-slate-200 hover:border-emerald-300 shadow-2xs"
+                                  title="Lihat & Cetak Bukti Kas Masuk (Kuitansi BKM)"
+                                >
+                                  <Receipt className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                  <tfoot className="bg-slate-900 text-white font-bold border-t-2 border-slate-900">
+                    <tr>
+                      <td colSpan={5} className="py-3 px-4 text-right uppercase tracking-wider text-xs">
+                        TOTAL SISA PIUTANG PELANGGAN:
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-xs">
+                        Rp {totalAllInvoiced.toLocaleString("id-ID")}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-xs text-emerald-400">
+                        Rp {totalAllPaid.toLocaleString("id-ID")}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-xs text-emerald-300 font-black">
+                        Rp {totalOutstandingPiutang.toLocaleString("id-ID")}
+                      </td>
+                      <td className="no-print"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* 5. FOOTNOTE & COMPLIANCE NOTES */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-600 leading-relaxed space-y-1.5">
+                <p className="font-bold text-slate-800 uppercase tracking-wide">
+                  Ketentuan Pelaporan Piutang SAK EMKM:
+                </p>
+                <p>
+                  1. Piutang usaha diakui saat barang dagang diserahkan atau jasa diberikan kepada pelanggan berdasarkan transaksi penjualan kredit (Akun 1002 - Piutang Usaha) atau faktur penjualan yang sah.
+                </p>
+                <p>
+                  2. Umur Piutang (Aging Schedule) dikelompokkan berdasarkan tanggal jatuh tempo: Belum Jatuh Tempo (Lancar), Lewat 1-30 Hari, Lewat 31-60 Hari, dan Lewat &gt;60 Hari untuk memudahkan manajemen penagihan arus kas.
+                </p>
+                <p>
+                  3. Sesuai Bab 8 SAK EMKM (Instrumen Keuangan), piutang dinilai sebesar jumlah tagihan bruto dikurangi pembayaran kas yang telah diterima dari pelanggan.
+                </p>
+              </div>
+
+              {/* OFFICIAL SIGNATURE BLOCK FOR PRINT */}
+              <ReportSignature />
+
+              {/* MODAL PELUNASAN PIUTANG (PARSIAL & LUNAS PENUH) */}
+              {selectedReceivableForPayment && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn no-print overflow-y-auto">
+                  <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 my-8 animate-scaleUp">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                          <CreditCard className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-base">Pelunasan Piutang Pelanggan</h3>
+                          <p className="text-[11px] text-slate-500 font-mono">
+                            No. Bukti: <span className="font-bold text-slate-700">{selectedReceivableForPayment.invoiceNumber}</span> • {selectedReceivableForPayment.customerName}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReceivableForPayment(null)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Receivable Summary Card */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                      <div className="grid grid-cols-2 gap-2 pb-2 border-b border-slate-200">
+                        <div>
+                          <span className="text-slate-500 text-[10px] uppercase font-bold block">Pelanggan</span>
+                          <span className="font-bold text-slate-900 text-xs">{selectedReceivableForPayment.customerName}</span>
+                          {selectedReceivableForPayment.customerPhone && selectedReceivableForPayment.customerPhone !== "-" && (
+                            <span className="text-[10px] text-slate-500 block font-mono">{selectedReceivableForPayment.customerPhone}</span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-500 text-[10px] uppercase font-bold block">Tgl Transaksi / Tempo</span>
+                          <span className="font-mono text-slate-700 text-xs">
+                            {selectedReceivableForPayment.transactionDate} ➔ {selectedReceivableForPayment.dueDate}
+                          </span>
+                          <div className="mt-0.5">
+                            {selectedReceivableForPayment.isOverdue ? (
+                              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                                Lewat {selectedReceivableForPayment.diffDays} Hari
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                Belum Tempo ({Math.abs(selectedReceivableForPayment.diffDays)} hari)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                        <div className="p-2 bg-white rounded-lg border border-slate-100">
+                          <span className="text-[10px] text-slate-400 block font-medium">Total Nilai Faktur</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs mt-0.5 block">
+                            Rp {selectedReceivableForPayment.totalAmount.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-100">
+                          <span className="text-[10px] text-slate-400 block font-medium">Sudah Terbayar</span>
+                          <span className="font-mono font-bold text-emerald-700 text-xs mt-0.5 block">
+                            Rp {(selectedReceivableForPayment.paidAmount || 0).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div className="p-2 bg-rose-50/80 rounded-lg border border-rose-200">
+                          <span className="text-[10px] text-rose-700 block font-bold uppercase">Sisa Tagihan</span>
+                          <span className="font-mono font-black text-rose-700 text-xs mt-0.5 block">
+                            Rp {selectedReceivableForPayment.remainingAmount.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mode Pelunasan: Penuh vs Parsial */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700">Pilihan Jenis Pembayaran</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentMode('full');
+                            setPaymentAmountInput(selectedReceivableForPayment.remainingAmount);
+                            setPaymentNotesInput(`Pelunasan Penuh Tagihan ${selectedReceivableForPayment.invoiceNumber} — ${selectedReceivableForPayment.customerName}`);
+                          }}
+                          className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                            paymentMode === 'full'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Lunas Penuh (100%)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentMode('partial');
+                            if (paymentAmountInput === selectedReceivableForPayment.remainingAmount) {
+                              setPaymentAmountInput(Math.round(selectedReceivableForPayment.remainingAmount * 0.5));
+                            }
+                            setPaymentNotesInput(`Pembayaran Parsial Tagihan ${selectedReceivableForPayment.invoiceNumber} — ${selectedReceivableForPayment.customerName}`);
+                          }}
+                          className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                            paymentMode === 'partial'
+                              ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>Pembayaran Parsial (Cicilan)</span>
+                        </button>
+                      </div>
+
+                      {/* Quick Percentage Buttons for Partial Mode */}
+                      {paymentMode === 'partial' && (
+                        <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                          <span className="text-[10px] text-slate-500 font-semibold mr-1">Shortcut Cicilan:</span>
+                          {[
+                            { label: "25%", ratio: 0.25 },
+                            { label: "50%", ratio: 0.50 },
+                            { label: "75%", ratio: 0.75 },
+                            { label: "100%", ratio: 1.0 }
+                          ].map((pct) => {
+                            const val = Math.round(selectedReceivableForPayment.remainingAmount * pct.ratio);
+                            return (
+                              <button
+                                key={pct.label}
+                                type="button"
+                                onClick={() => {
+                                  setPaymentAmountInput(val);
+                                  if (pct.ratio === 1.0) setPaymentMode('full');
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[10px] font-bold font-mono transition cursor-pointer"
+                              >
+                                {pct.label} (Rp {(val / 1000).toLocaleString('id-ID')}k)
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Error Banner */}
+                    {paymentError && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{paymentError}</span>
+                      </div>
+                    )}
+
+                    {/* Payment Inputs Form */}
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-bold text-slate-700 flex items-center gap-1">
+                            <span>Jumlah Kas Masuk Diterima (Rp)</span>
+                            <span className="text-rose-500">*</span>
+                          </label>
+                          <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                            Maks: Rp {selectedReceivableForPayment.remainingAmount.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <input
+                          type="number"
+                          value={paymentAmountInput || ""}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            setPaymentAmountInput(val);
+                            if (val >= selectedReceivableForPayment.remainingAmount) {
+                              setPaymentMode('full');
+                            } else {
+                              setPaymentMode('partial');
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-black text-slate-900 text-base focus:outline-hidden focus:border-emerald-600 focus:bg-white"
+                          placeholder="Masukkan nominal pelunasan..."
+                        />
+                        {paymentAmountInput > 0 && (
+                          <p className="text-[10px] text-slate-500 italic mt-1 truncate">
+                            Terbilang: <span className="font-semibold text-slate-700">{angkaTerbilang(paymentAmountInput)}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Tanggal Terima Kas</label>
+                          <input
+                            type="date"
+                            value={paymentDateInput}
+                            onChange={(e) => setPaymentDateInput(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Masuk Rekening / Kas</label>
+                          <select
+                            value={paymentSourceAccount}
+                            onChange={(e) => setPaymentSourceAccount(parseInt(e.target.value))}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:bg-white"
+                          >
+                            <option value="1001">1001 - Kas &amp; Setara Kas (Tunai/Kasir)</option>
+                            <option value="1001">1001 - Kas Bank BCA (Transfer)</option>
+                            <option value="1001">1001 - Kas Bank Mandiri / QRIS</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">No. Bukti Kas Masuk (BKM)</label>
+                          <input
+                            type="text"
+                            value={paymentReceiptNumber}
+                            onChange={(e) => setPaymentReceiptNumber(e.target.value)}
+                            placeholder="Contoh: BKM/2026/06/001"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-medium text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Keterangan / Memo Pembayaran</label>
+                          <input
+                            type="text"
+                            value={paymentNotesInput}
+                            onChange={(e) => setPaymentNotesInput(e.target.value)}
+                            placeholder="Keterangan transaksi pelunasan..."
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Simulasi Dampak Akuntansi & Neraca (Live Accounting Simulation) */}
+                      <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between text-indigo-950 font-bold text-xs">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                            Simulasi Mutasi Neraca &amp; Jurnal Otomatis (SAK EMKM)
+                          </span>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-mono">
+                            Auto Double-Entry
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                          <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                            <span className="text-[10px] text-slate-400 block font-medium">Sisa Piutang Akhir</span>
+                            <span className="font-mono font-bold text-xs mt-0.5 block text-slate-800">
+                              Rp {Math.max(0, selectedReceivableForPayment.remainingAmount - paymentAmountInput).toLocaleString('id-ID')}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full mt-1 inline-block ${
+                              paymentAmountInput >= selectedReceivableForPayment.remainingAmount
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {paymentAmountInput >= selectedReceivableForPayment.remainingAmount ? 'LUNAS (100%)' : 'PARSIAL'}
+                            </span>
+                          </div>
+
+                          <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                            <span className="text-[10px] text-slate-400 block font-medium">Kas (1001) di Neraca</span>
+                            <span className="font-mono font-bold text-xs mt-0.5 block text-emerald-700">
+                              + Rp {(paymentAmountInput || 0).toLocaleString('id-ID')}
+                            </span>
+                            <span className="text-[9px] text-emerald-600 font-semibold mt-1 block">Bertambah (Debit)</span>
+                          </div>
+
+                          <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                            <span className="text-[10px] text-slate-400 block font-medium">Piutang (1002) di Neraca</span>
+                            <span className="font-mono font-bold text-xs mt-0.5 block text-rose-700">
+                              - Rp {(paymentAmountInput || 0).toLocaleString('id-ID')}
+                            </span>
+                            <span className="text-[9px] text-rose-600 font-semibold mt-1 block">Berkurang (Kredit)</span>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-indigo-800 leading-tight pt-1">
+                          📌 Transaksi ini mendebit akun 1001 (Kas) dan mengkredit akun 1002 (Piutang Usaha). Saldo posisi keuangan (Neraca) tetap seimbang sempurna.
+                        </p>
+                      </div>
+
+                      {/* Riwayat Pembayaran Sebelumnya (jika ada) */}
+                      {selectedReceivableForPayment.paymentHistory && selectedReceivableForPayment.paymentHistory.length > 0 && (
+                        <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                            Riwayat Pembayaran Sebelumnya ({selectedReceivableForPayment.paymentHistory.length} kali)
+                          </span>
+                          <div className="space-y-1 max-h-24 overflow-y-auto">
+                            {selectedReceivableForPayment.paymentHistory.map((rec: any, idx: number) => (
+                              <div key={rec.id || idx} className="flex items-center justify-between text-[11px] p-1.5 bg-slate-50 rounded-lg">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-slate-500">{rec.date}</span>
+                                  <span className="text-slate-700 font-medium truncate max-w-[180px]">{rec.note || rec.receiptNumber}</span>
+                                </div>
+                                <span className="font-mono font-bold text-emerald-700">
+                                  Rp {(rec.amount || 0).toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dialog Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReceivableForPayment(null)}
+                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmPayment}
+                        className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Simpan Pelunasan Kas</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* MODAL BUKTI KAS MASUK (KUITANSI RESMI SAK EMKM) */}
+              {showReceiptModal && settledReceiptData && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn no-print overflow-y-auto">
+                  <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 p-6 space-y-5 my-8 animate-scaleUp">
+                    {/* Modal Bar Actions */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                          <Receipt className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm">Bukti Kas Masuk (Kuitansi Resmi)</h3>
+                          <p className="text-[11px] text-slate-500">Standar Akuntansi Keuangan SAK EMKM</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowReceiptModal(false)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Kuitansi Paper Preview Frame */}
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 bg-white space-y-4 text-xs font-sans shadow-inner">
+                      {/* Store Header */}
+                      <div className="border-b-2 border-slate-800 pb-3 flex items-start justify-between">
+                        <div>
+                          <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
+                            {storeConfig?.storeName || "Toko Sembako Akuntan AI"}
+                          </h2>
+                          <p className="text-[11px] text-slate-600">
+                            {storeConfig?.storeAddress || "Jl. Niaga Raya No. 45"}, {storeConfig?.storeCity || "Indonesia"}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            NPWP: {storeConfig?.storeNpwp || "00.000.000.0-000.000"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-900 text-white px-2 py-0.5 rounded">
+                            BUKTI KAS MASUK
+                          </span>
+                          <div className="text-xs font-mono font-bold text-slate-800 mt-1">
+                            {settledReceiptData.receiptNumber}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            Tgl: {settledReceiptData.date}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Receipt Fields */}
+                      <div className="space-y-2.5 text-xs">
+                        <div className="grid grid-cols-12 gap-2">
+                          <span className="col-span-4 text-slate-500 font-medium">Telah Terima Dari:</span>
+                          <span className="col-span-8 font-bold text-slate-900 border-b border-slate-200 pb-0.5">
+                            {settledReceiptData.customerName}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-2">
+                          <span className="col-span-4 text-slate-500 font-medium">Uang Sejumlah:</span>
+                          <div className="col-span-8 border-b border-slate-200 pb-0.5">
+                            <span className="font-mono font-black text-emerald-800 text-sm">
+                              Rp {settledReceiptData.amount.toLocaleString('id-ID')}
+                            </span>
+                            <span className="block text-[11px] font-serif italic text-slate-700 mt-0.5">
+                              #{settledReceiptData.terbilang}#
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-2">
+                          <span className="col-span-4 text-slate-500 font-medium">Untuk Pembayaran:</span>
+                          <span className="col-span-8 text-slate-800 border-b border-slate-200 pb-0.5">
+                            {settledReceiptData.notes}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-2">
+                          <span className="col-span-4 text-slate-500 font-medium">Faktur / No. Bukti:</span>
+                          <span className="col-span-8 font-mono font-semibold text-slate-800 border-b border-slate-200 pb-0.5">
+                            {settledReceiptData.invoiceNumber}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Status & Sisa Piutang Table */}
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 grid grid-cols-3 gap-2 text-center text-[11px]">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Total Faktur</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            Rp {settledReceiptData.originalTotal.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Pembayaran Ini</span>
+                          <span className="font-mono font-bold text-emerald-700">
+                            Rp {settledReceiptData.currentPayment.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Sisa Piutang</span>
+                          <span className="font-mono font-bold text-rose-700">
+                            Rp {settledReceiptData.newRemaining.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Signatures */}
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 text-center text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block">Penyetor / Pelanggan,</span>
+                          <div className="h-12 flex items-end justify-center">
+                            <span className="font-bold text-slate-800 underline decoration-slate-400">
+                              ( {settledReceiptData.customerName} )
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block">Diterima Kasir / Keuangan,</span>
+                          <div className="h-12 flex items-end justify-center">
+                            <span className="font-bold text-slate-800 underline decoration-slate-400">
+                              ( Staf Akuntansi Toko )
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowReceiptModal(false);
+                          setActiveReport('neraca');
+                        }}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                      >
+                        ➔ Lihat Saldo di Neraca
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowReceiptModal(false)}
+                          className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                        >
+                          Tutup
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.print();
+                          }}
+                          className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-black rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Cetak Kuitansi</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

@@ -19,7 +19,8 @@ import {
   Copy,
   Check,
   Lock,
-  Unlock
+  Unlock,
+  Camera
 } from "lucide-react";
 import { StoreConfig, DemoProduct } from "../types";
 import { getActiveLicense, getHardwareProfile, revokeLicense, LicenseData, HardwareProfile } from "../utils/licenseManager";
@@ -172,6 +173,7 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
   const [storeType, setStoreType] = useState<string>(config?.storeType || DEFAULT_STORE_CONFIG.storeType);
   const [storeName, setStoreName] = useState<string>(config?.storeName || DEFAULT_STORE_CONFIG.storeName);
   const [storeCity, setStoreCity] = useState<string>(config?.storeCity || DEFAULT_STORE_CONFIG.storeCity);
+  const [storeLogo, setStoreLogo] = useState<string>(config?.storeLogo || "");
   const [reportPeriod, setReportPeriod] = useState<string>(config?.reportPeriod || DEFAULT_STORE_CONFIG.reportPeriod);
   const [taxRate, setTaxRate] = useState<number>(config?.taxRate !== undefined ? config.taxRate : DEFAULT_STORE_CONFIG.taxRate);
   
@@ -215,6 +217,7 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
       storeType,
       storeName,
       storeCity,
+      storeLogo,
       reportPeriod,
       taxRate,
       demoProducts
@@ -309,8 +312,59 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
           <div className="bg-white p-6 rounded-2xl border border-slate-150 shadow-xs space-y-5">
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 flex items-center gap-1">
               <User className="w-3.5 h-3.5 text-slate-400" />
-              IDENTITAS USAHA & PAJAK
+              IDENTITAS USAHA &amp; PAJAK
             </span>
+
+            {/* Logo Perusahaan (Bisa Diganti) */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Logo Perusahaan / Toko</label>
+              <div className="flex items-center gap-3">
+                <div className="relative group w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center bg-slate-50 shadow-2xs shrink-0">
+                  {storeLogo ? (
+                    <img src={storeLogo} alt="Logo" className="w-full h-full object-cover" />
+                  ) : (
+                    <Store className="w-6 h-6 text-slate-400" />
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold cursor-pointer transition">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>{storeLogo ? "Ganti Logo" : "Unggah Logo"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 3 * 1024 * 1024) {
+                          alert("Ukuran logo maksimal 3 MB!");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          if (ev.target?.result) setStoreLogo(ev.target.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                        e.target.value = "";
+                      }} 
+                    />
+                  </label>
+                  {storeLogo && (
+                    <button
+                      type="button"
+                      onClick={() => setStoreLogo("")}
+                      className="block text-[11px] text-rose-600 hover:underline font-medium cursor-pointer"
+                    >
+                      Hapus Logo
+                    </button>
+                  )}
+                  <p className="text-[10px] text-slate-400">
+                    Format: JPG, PNG, SVG, WebP. Maks 3 MB.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* Shop Name */}
             <div>

@@ -16,7 +16,7 @@ import {
   Maximize2
 } from "lucide-react";
 import { StoreConfig } from "../types";
-import { downloadElementAsPdf, printA4Element, triggerPrintA4 } from "../utils/printHelper";
+import { downloadElementAsPdf, printA4Element } from "../utils/printHelper";
 
 export interface PrintTableColumn<T = any> {
   key: string;

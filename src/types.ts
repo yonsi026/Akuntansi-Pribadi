@@ -16,7 +16,8 @@ export interface Account {
 }
 
 export type TransactionType =
-  | 'Penjualan'          // Penjualan Stok / Barang Dagang
+  | 'Penjualan'          // Penjualan Stok / Barang Dagang Tunai
+  | 'Penjualan Kredit'   // Penjualan Kredit / Piutang Usaha Pelanggan
   | 'Pembelian'          // Pembelian Stok / Barang Dagang
   | 'Biaya Operasional'  // Beban Usaha umum
   | 'Gaji Karyawan'      // Gaji & Upah Staf/Karyawan
@@ -44,6 +45,25 @@ export interface Transaction {
   
   // Bukti transaksi / Nomor faktur (pilihan)
   invoiceNumber?: string;
+
+  // Metadata detail penjualan kredit & piutang pelanggan
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  dueDate?: string; // Tanggal Jatuh Tempo (YYYY-MM-DD)
+  paidAmount?: number; // Jumlah yang sudah dibayar (DP / cicilan)
+  remainingAmount?: number; // Sisa piutang yang belum lunas
+  isCreditSale?: boolean;
+  status?: 'unpaid' | 'partial' | 'paid';
+  receiptNumber?: string;
+  paymentHistory?: Array<{
+    id: string;
+    date: string;
+    amount: number;
+    receiptNumber?: string;
+    accountName?: string;
+    note?: string;
+  }>;
 
   // Metadata detail operasional & aset (opsional)
   operationalCategory?: string; // 'Gaji' | 'Listrik' | 'Sewa' | 'Inventaris' | 'Internet' | 'Perlengkapan' | 'Servis'
@@ -142,6 +162,9 @@ export interface StoreConfig {
   storeCity: string;         // e.g. "Jakarta"
   storeAddress?: string;      // e.g. "Jl. Merdeka No. 45"
   storeNpwp?: string;         // e.g. "01.234.567.8-901.000"
+  storePhone?: string;        // e.g. "08123456789"
+  storeOwner?: string;        // e.g. "yonsi"
+  storeLogo?: string;         // Base64 data URL or image URL for custom company logo
   reportPeriod: string;      // e.g. "Bulanan"
   taxRate: number;           // e.g. 0.005
   demoProducts: DemoProduct[];

@@ -451,6 +451,118 @@ export function exportToXLSX(
 
     XLSX.utils.book_append_sheet(wb, wsStock, sanitizeSheetName("Stok Barang"));
 
+    // 7. --- SHEET 7: DAFTAR PIUTANG PELANGGAN & AGING SCHEDULE (SAK EMKM) ---
+    const creditTxs = transactions.filter(t => 
+      t.type === 'Penjualan Kredit' || 
+      t.isCreditSale || 
+      t.debitAccount === 1002 ||
+      (t.type === 'Penjualan' && t.remainingAmount !== undefined && t.remainingAmount > 0)
+    );
+
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+
+    const piutangHeaders = [
+      [`DAFTAR PIUTANG PELANGGAN & ANALISIS UMUR PIUTANG (AGING SAK EMKM)`],
+      [`${dynamicName} - ${dynamicCity}`],
+      [`${dynamicPeriod} | Posisi: ${todayDate.toLocaleDateString("id-ID")}`],
+      [],
+      [
+        "No. Bukti / Faktur",
+        "Nama Pelanggan",
+        "No. Telepon",
+        "Alamat",
+        "Tgl Transaksi",
+        "Jatuh Tempo",
+        "Umur Piutang (Hari)",
+        "Kategori Aging",
+        "Nilai Penjualan (Rp)",
+        "Sudah Dibayar (Rp)",
+        "Sisa Piutang (Rp)",
+        "Status"
+      ]
+    ];
+
+    const piutangRows = creditTxs.map(t => {
+      const total = t.amount;
+      const paid = t.paidAmount || 0;
+      const rem = t.remainingAmount !== undefined ? t.remainingAmount : Math.max(0, total - paid);
+      let dueDate = t.dueDate;
+      if (!dueDate) {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime())) {
+          d.setDate(d.getDate() + 30);
+          dueDate = d.toISOString().split('T')[0];
+        } else {
+          dueDate = t.date;
+        }
+      }
+      const due = new Date(dueDate);
+      due.setHours(0, 0, 0, 0);
+      const diffDays = Math.floor((todayDate.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+      let agingCat = "Lunas";
+      if (rem > 0) {
+        if (diffDays <= 0) agingCat = "Belum Jatuh Tempo (Lancar)";
+        else if (diffDays <= 30) agingCat = `Lewat 1-30 Hari (${diffDays} Hari)`;
+        else if (diffDays <= 60) agingCat = `Lewat 31-60 Hari (${diffDays} Hari)`;
+        else agingCat = `Lewat >60 Hari (${diffDays} Hari)`;
+      }
+      return [
+        t.invoiceNumber || `FK-${t.id.slice(0, 6).toUpperCase()}`,
+        t.customerName || "Pelanggan Kredit",
+        t.customerPhone || "-",
+        t.customerAddress || "-",
+        t.date,
+        dueDate,
+        rem > 0 ? (diffDays > 0 ? diffDays : 0) : 0,
+        agingCat,
+        total,
+        paid,
+        rem,
+        rem === 0 ? "LUNAS" : (diffDays > 0 ? "LEWAT JATUH TEMPO" : "LANCAR (BELUM TEMPO)")
+      ];
+    });
+
+    const totalPiutangInvoiced = creditTxs.reduce((s, t) => s + t.amount, 0);
+    const totalPiutangPaid = creditTxs.reduce((s, t) => s + (t.paidAmount || 0), 0);
+    const totalPiutangRem = creditTxs.reduce((s, t) => {
+      const rem = t.remainingAmount !== undefined ? t.remainingAmount : Math.max(0, t.amount - (t.paidAmount || 0));
+      return s + rem;
+    }, 0);
+
+    const piutangSummaryRow = [
+      "TOTAL SISA PIUTANG",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      totalPiutangInvoiced,
+      totalPiutangPaid,
+      totalPiutangRem,
+      ""
+    ];
+
+    const wsPiutang = XLSX.utils.aoa_to_sheet([...piutangHeaders, ...piutangRows, [], piutangSummaryRow]);
+    wsPiutang["!cols"] = [
+      { wch: 18 }, // No. Bukti / Faktur
+      { wch: 26 }, // Pelanggan
+      { wch: 16 }, // Telepon
+      { wch: 28 }, // Alamat
+      { wch: 14 }, // Tgl Transaksi
+      { wch: 14 }, // Jatuh Tempo
+      { wch: 18 }, // Umur Piutang
+      { wch: 26 }, // Kategori Aging
+      { wch: 20 }, // Nilai Penjualan
+      { wch: 18 }, // Sudah Dibayar
+      { wch: 20 }, // Sisa Piutang
+      { wch: 22 }  // Status
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsPiutang, sanitizeSheetName("Daftar Piutang"));
+
     // Formulate safe and descriptive filename
     const dateStr = new Date().toISOString().split("T")[0];
     const safeStorePrefix = (storeConfig?.storeName || "UMKM")

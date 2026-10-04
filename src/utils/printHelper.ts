@@ -485,7 +485,7 @@ export function generateFallbackVectorPdf(
 
     doc.setFontSize(8);
     doc.setTextColor(100);
-    doc.text(`NPWP: ${store.storeNpwp || "-"}  |  Telp: ${store.storePhone || "-"}`, 14, y);
+    doc.text(`NPWP: ${store.storeNpwp || "-"}  |  Wilayah: ${store.storeCity || "Indonesia"}`, 14, y);
     y += 4;
 
     // Header divider line

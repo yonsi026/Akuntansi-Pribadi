@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -24,7 +24,9 @@ import {
   Store,
   X,
   ShieldCheck,
-  KeyRound
+  KeyRound,
+  Camera,
+  Printer
 } from "lucide-react";
 import { Transaction, StockItem, FinancialStats, StoreConfig, UserAccount } from "./types";
 import { 
@@ -46,12 +48,24 @@ import { CloudSync } from "./components/CloudSync";
 import { AccountDocumentation } from "./components/AccountDocumentation";
 import { LandingPage } from "./components/LandingPage";
 import { ActivationModal } from "./components/ActivationModal";
+import { SalesOverview } from "./components/SalesOverview";
+import { InvoiceManager } from "./components/InvoiceManager";
+import { PurchaseManager } from "./components/PurchaseManager";
+import { DeliveryManager } from "./components/DeliveryManager";
+import { OrderManager } from "./components/OrderManager";
+import { PointOfSale } from "./components/PointOfSale";
+import { NavigationSyncBar } from "./components/NavigationSyncBar";
+import { UniversalPrintModal } from "./components/UniversalPrintModal";
+import { printInPageDOM } from "./utils/printHelper";
+import { getStoredInvoices } from "./utils/invoiceService";
 import { getCurrentUser, logoutUser } from "./utils/authService";
 import { getActiveLicense, LicenseData } from "./utils/licenseManager";
 
 const TAB_CONFIG: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: "Ringkasan Toko", subtitle: "Executive Dashboard & Posisi Finansial SAK EMKM" },
-  transaksi: { title: "Jurnal & Transaksi", subtitle: "Pencatatan Mutasi Kas & Entri SAK EMKM" },
+  pos: { title: "Kasir (POS)", subtitle: "Mesin Kasir Cepat, Hitung Otomatis PPN 11%, Scan Barcode & Cetak Struk (Modul Kas & Bank)" },
+  penjualan: { title: "Overview Penjualan", subtitle: "Ringkasan Eksekutif, Tren & Alur Siklus Penjualan" },
+  transaksi: { title: "Kas & Bank / Jurnal", subtitle: "Pencatatan Mutasi Kas & Entri SAK EMKM" },
   stok: { title: "Stok Barang (HPP)", subtitle: "Manajemen Persediaan & Biaya Pokok Penjualan" },
   laporan: { title: "Laporan Keuangan", subtitle: "Laba Rugi, Neraca, Arus Kas & Ekspor Excel" },
   pajak: { title: "Perpajakan UMKM", subtitle: "Kalkulator PPh Final 0.5% (PP 23) & PPN" },
@@ -61,20 +75,71 @@ const TAB_CONFIG: Record<string, { title: string; subtitle: string }> = {
 };
 
 export const getPageDetails = (tab: string, subFilter?: string): { title: string; subtitle: string; parentTitle?: string } => {
+  if (tab === "pos") {
+    return { 
+      title: "Kasir (POS)", 
+      subtitle: "Mesin Kasir Cepat, Hitung Otomatis PPN 11%, Scan Barcode & Cetak Struk Belanja"
+    };
+  }
+  if (tab === "penjualan") {
+    if (subFilter === "tagihan") {
+      return { title: "Tagihan", subtitle: "Kelola Tagihan Penjualan, Faktur & Penagihan Pelanggan", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "tambah-tagihan" || subFilter === "form-tagihan") {
+      return { title: "Tambah Tagihan", subtitle: "Formulir Faktur Penjualan Baru & Penagihan Resmi Pelanggan", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "pengiriman") {
+      return { title: "Pengiriman", subtitle: "Surat Jalan, Ekspedisi & No. Resi Pengiriman Pelanggan", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "pemesanan") {
+      return { title: "Pemesanan Penjualan", subtitle: "Sales Order (SO) & Daftar Pesanan Pelanggan", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "tambah-pemesanan") {
+      return { title: "Tambah Pemesanan", subtitle: "Formulir Surat Pesanan Penjualan Baru (Sales Order)", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "pemesanan-per-produk") {
+      return { title: "Pemesanan per Produk", subtitle: "Laporan Rekapitulasi Pemesanan Produk, Kuantitas & Rata-rata Harga", parentTitle: "Penjualan" };
+    }
+    if (subFilter === "penawaran") {
+      return { title: "Penawaran Penjualan", subtitle: "Sales Quotation (SQ) & Penawaran Harga Pelanggan", parentTitle: "Penjualan" };
+    }
+    return { title: "Overview Penjualan", subtitle: "Ringkasan Eksekutif, Tren & Alur Siklus Penjualan", parentTitle: "Penjualan" };
+  }
+  if (tab === "tagihan") {
+    return { title: "Tagihan", subtitle: "Kelola Tagihan Penjualan, Faktur & Penagihan Pelanggan", parentTitle: "Penjualan" };
+  }
+  if (tab === "pembelian") {
+    if (subFilter === "tagihan") {
+      return { title: "Tagihan Pembelian", subtitle: "Faktur Pembelian Stok, Tagihan Supplier & Pembayaran", parentTitle: "Pembelian" };
+    }
+    if (subFilter === "piutang") {
+      return { title: "Piutang", subtitle: "Daftar Piutang Pelanggan & Jadwal Penagihan (Sub Navbar Tagihan Pembelian)", parentTitle: "Pembelian" };
+    }
+    if (subFilter === "pengiriman") {
+      return { title: "Pengiriman Pembelian", subtitle: "Penerimaan Fisik Barang dari Pemasok / Ekspedisi", parentTitle: "Pembelian" };
+    }
+    if (subFilter === "pesanan") {
+      return { title: "Pesanan Pembelian", subtitle: "Purchase Order (PO) & Pengadaan Barang Dagang", parentTitle: "Pembelian" };
+    }
+    if (subFilter === "penawaran") {
+      return { title: "Penawaran Pembelian", subtitle: "Permintaan Penawaran Harga Pemasok (RFQ)", parentTitle: "Pembelian" };
+    }
+    return { title: "Overview Pembelian", subtitle: "Ringkasan Pengadaan Barang & Pembelian Usaha", parentTitle: "Pembelian" };
+  }
   if (tab === "transaksi") {
     if (subFilter === "invoice") {
       return { title: "Tagihan", subtitle: "Daftar tagihan penjualan, detil faktur INV, ekspedisi & penerimaan pembayaran kas", parentTitle: "Penjualan" };
     }
     if (subFilter === "jurnal") {
-      return { title: "Buku Jurnal Umum", subtitle: "Daftar Entri Jurnal Double-Entry Berpasangan Standar SAK EMKM", parentTitle: "Jurnal & Transaksi" };
+      return { title: "Buku Jurnal Umum", subtitle: "Daftar Entri Jurnal Double-Entry Berpasangan Standar SAK EMKM", parentTitle: "Kas & Bank" };
     }
     if (subFilter === "mutasi") {
-      return { title: "Buku Kas & Mutasi", subtitle: "Riwayat Arus Kas Masuk & Kas Keluar Lengkap", parentTitle: "Jurnal & Transaksi" };
+      return { title: "Buku Kas & Mutasi", subtitle: "Riwayat Arus Kas Masuk & Kas Keluar Lengkap", parentTitle: "Kas & Bank" };
     }
     if (subFilter === "bukubesar") {
-      return { title: "Buku Besar per Akun", subtitle: "Buku Besar Pembantu & Mutasi Saldo Kode Akun SAK EMKM", parentTitle: "Jurnal & Transaksi" };
+      return { title: "Buku Besar per Akun", subtitle: "Buku Besar Pembantu & Mutasi Saldo Kode Akun SAK EMKM", parentTitle: "Kas & Bank" };
     }
-    return { title: "Catat Transaksi Baru", subtitle: "Input Transaksi Kas, Penjualan & Beban Operasional", parentTitle: "Jurnal & Transaksi" };
+    return { title: "Catat Transaksi Baru", subtitle: "Input Transaksi Kas, Penjualan & Beban Operasional", parentTitle: "Kas & Bank" };
   }
   if (tab === "stok") {
     if (subFilter === "tambah") {
@@ -95,8 +160,23 @@ export const getPageDetails = (tab: string, subFilter?: string): { title: string
     if (subFilter === "neracasaldo") {
       return { title: "Neraca Saldo (Trial Balance)", subtitle: "Verifikasi Keseimbangan Saldo Debit & Kredit Seluruh Kode Akun", parentTitle: "Laporan Keuangan" };
     }
+    if (subFilter === "piutang") {
+      return { title: "Daftar Piutang Pelanggan", subtitle: "Rekap Saldo Tagihan Pelanggan, Jatuh Tempo & Umur Piutang (Aging SAK EMKM)", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "pengiriman") {
+      return { title: "Pengiriman Penjualan", subtitle: "Laporan Rincian Pengiriman Barang, Kuantitas & Peringkat Pelanggan", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "ongkir") {
+      return { title: "Ongkos Kirim per Ekspedisi", subtitle: "Laporan Biaya & Statistik Pengiriman per Ekspedisi", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "pemesanan" || subFilter === "pemesanan-per-produk") {
+      return { title: "Pemesanan per Produk", subtitle: "Laporan Rekapitulasi Pemesanan Produk, Kuantitas & Rata-rata Harga", parentTitle: "Laporan Keuangan" };
+    }
     if (subFilter === "ekspor") {
       return { title: "Unduh File Excel (.xlsx)", subtitle: "Ekspor Seluruh Laporan Keuangan ke Microsoft Excel", parentTitle: "Laporan Keuangan" };
+    }
+    if (subFilter === "import") {
+      return { title: "Import Data Excel (.xlsx)", subtitle: "Unggah & Sinkronkan Data Transaksi dari Berkas Excel", parentTitle: "Laporan Keuangan" };
     }
     return { title: "Laporan Laba Rugi", subtitle: "Pendapatan, HPP, Beban Usaha & Perhitungan Laba Bersih", parentTitle: "Laporan Keuangan" };
   }
@@ -141,6 +221,12 @@ export default function App() {
   // Hardware License & Anti-Piracy States
   const [activeLicense, setActiveLicense] = useState<LicenseData | null>(null);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
+  const headerLogoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Navbar Print States
+  const [navbarPrintModalOpen, setNavbarPrintModalOpen] = useState(false);
+  const [navbarPrintHtml, setNavbarPrintHtml] = useState("");
+  const [navbarPrintTitle, setNavbarPrintTitle] = useState("");
 
   // Local storage state keys
   const LOCAL_STORAGE_TX_KEY = "akuntan_ai_transactions_v1";
@@ -265,6 +351,28 @@ export default function App() {
   const handleSaveStoreConfig = (newConfig: StoreConfig) => {
     setStoreConfig(newConfig);
     localStorage.setItem(LOCAL_STORAGE_CONFIG_KEY, JSON.stringify(newConfig));
+  };
+
+  const handleUpdateStoreLogo = (newLogoUrl: string) => {
+    const updatedConfig: StoreConfig = {
+      ...storeConfig,
+      storeLogo: newLogoUrl
+    };
+    handleSaveStoreConfig(updatedConfig);
+    setWelcomeBanner("Logo perusahaan berhasil diperbarui!");
+  };
+
+  const handleDeductStock = (stockItemId: string, qty: number) => {
+    const updatedStocks = stockItems.map(item => {
+      if (item.id === stockItemId) {
+        return {
+          ...item,
+          stock: Math.max(0, item.stock - qty)
+        };
+      }
+      return item;
+    });
+    saveState(transactions, updatedStocks);
   };
 
   const handleSyncImport = (pulledTxs: Transaction[], pulledStocks: StockItem[], pulledConfig: StoreConfig) => {
@@ -486,6 +594,87 @@ export default function App() {
       });
     });
 
+    // Add Credit Sales (Penjualan Kredit) to populate Daftar Piutang Pelanggan & Aging
+    const todayObj = new Date();
+    const curYear = todayObj.getFullYear();
+    const curMonth = String(todayObj.getMonth() + 1).padStart(2, "0");
+    const curDay = String(todayObj.getDate()).padStart(2, "0");
+    const todayDateStr = `${curYear}-${curMonth}-${curDay}`;
+
+    // Overdue 25 days (Aging bucket: Lewat 1-30 Hari)
+    const overdueDate1 = new Date(todayObj.getTime() - (25 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+    const txnDate1 = new Date(todayObj.getTime() - (55 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+
+    // Overdue 48 days (Aging bucket: Lewat 31-60 Hari)
+    const overdueDate2 = new Date(todayObj.getTime() - (48 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+    const txnDate2 = new Date(todayObj.getTime() - (78 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+
+    // Current / In-term (Due in 14 days, Belum Jatuh Tempo)
+    const currentDueDate = new Date(todayObj.getTime() + (14 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+
+    demoTx.push(
+      {
+        id: "demo-kredit-001",
+        date: txnDate1,
+        dueDate: overdueDate1,
+        invoiceNumber: "FPK/2026/001",
+        customerName: "PT Sumber Rejeki Abadi",
+        customerPhone: "0812-8877-6655",
+        customerAddress: "Jl. Industri Raya No. 12, Cikarang",
+        description: `Penjualan Kredit Grosir Termin 30 Hari — PT Sumber Rejeki Abadi`,
+        amount: 3500000,
+        paidAmount: 1000000,
+        remainingAmount: 2500000,
+        type: 'Penjualan Kredit',
+        ppnEnabled: false,
+        ppnAmount: 0,
+        debitAccount: 1002, // Piutang Usaha
+        creditAccount: 4001, // Pendapatan Penjualan
+        isCreditSale: true,
+        status: 'partial'
+      },
+      {
+        id: "demo-kredit-002",
+        date: txnDate2,
+        dueDate: overdueDate2,
+        invoiceNumber: "FPK/2026/002",
+        customerName: "Koperasi Karyawan Sejahtera",
+        customerPhone: "0813-2233-4455",
+        customerAddress: "Kawasan Industri MM2100",
+        description: `Penjualan Kredit Paket Usaha — Koperasi Karyawan Sejahtera`,
+        amount: 1800000,
+        paidAmount: 0,
+        remainingAmount: 1800000,
+        type: 'Penjualan Kredit',
+        ppnEnabled: false,
+        ppnAmount: 0,
+        debitAccount: 1002, // Piutang Usaha
+        creditAccount: 4001,
+        isCreditSale: true,
+        status: 'unpaid'
+      },
+      {
+        id: "demo-kredit-003",
+        date: todayDateStr,
+        dueDate: currentDueDate,
+        invoiceNumber: "FPK/2026/003",
+        customerName: "Toko Grosir Berkah Barokah",
+        customerPhone: "0817-9988-1122",
+        customerAddress: "Jl. Surya Kencana No. 88, Bogor",
+        description: `Penjualan Kredit Barang Dagang Tempo 14 Hari — Toko Berkah Barokah`,
+        amount: 2750000,
+        paidAmount: 750000,
+        remainingAmount: 2000000,
+        type: 'Penjualan Kredit',
+        ppnEnabled: false,
+        ppnAmount: 0,
+        debitAccount: 1002, // Piutang Usaha
+        creditAccount: 4001,
+        isCreditSale: true,
+        status: 'partial'
+      }
+    );
+
     // Add common utility & payroll payments
     const salDesc = isConsultant
       ? `Honor Drafter, Desainer & Tenaga Ahli Studio — ${storeName}`
@@ -523,7 +712,7 @@ export default function App() {
 
   const handleLoadDemoData = () => {
     handleLoadCustomDemoData(storeConfig);
-    alert(`Data Demo ${storeConfig.storeName} (${storeConfig.storeCity}) berhasil dimuat berdasarkan profil toko pilihan Anda!`);
+    setWelcomeBanner(`Data Demo ${storeConfig.storeName} (${storeConfig.storeCity}) berhasil dimuat berdasarkan profil toko pilihan Anda!`);
   };
 
   // Compile calculations derived from actual transaction history
@@ -558,6 +747,344 @@ export default function App() {
   const pageInfo = getPageDetails(activeTab, activeSubFilter);
   const lowStockCount = stockItems.filter(item => item.stock < 10).length;
   const isNeracaBalanced = Math.abs(stats.totalAssets - (stats.totalLiabilities + stats.totalEquity)) < 1;
+
+  // Active Navbar Print Handler: directly prints current page document to printer
+  const handleNavbarPrint = () => {
+    let html = "";
+    let title = "";
+    const companyLogo = storeConfig.storeLogo 
+      ? `<img src="${storeConfig.storeLogo}" style="height: 48px; max-width: 140px; object-fit: contain; margin-bottom: 8px;" />` 
+      : "";
+    const companyName = storeConfig.storeName || "Toko Sembako Berkah Mandiri";
+    const companyAddress = [storeConfig.storeAddress, storeConfig.storeCity].filter(Boolean).join(", ");
+    const today = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+
+    if (activeTab === "penjualan" && activeSubFilter === "pengiriman") {
+      // 1. Pengiriman: Cetak Surat Jalan & Daftar Pengiriman
+      title = `Daftar Pengiriman Barang & Surat Jalan - ${companyName}`;
+      let deliveriesList: any[] = [];
+      try {
+        const raw = localStorage.getItem("kledo_deliveries_v1");
+        if (raw) deliveriesList = JSON.parse(raw);
+      } catch (e) {}
+      if (!deliveriesList || deliveriesList.length === 0) {
+        deliveriesList = [
+          {
+            deliveryNumber: "SJ/2026/0001",
+            customerName: "POS Customer",
+            reference: "INV/00001",
+            status: "terkirim",
+            date: "2026-09-24",
+            shippingDate: "2026-09-24",
+            expedition: "Tiki",
+            trackingNumber: "45679995555",
+            warehouse: "Gudang Utama",
+            items: [{ productName: "Custom Product (Baju Koko)", qty: 5, unit: "Pcs", unitPrice: 250000, total: 1250000 }]
+          }
+        ];
+      }
+
+      html = `
+        <div class="printable-document" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; color: #0f172a; max-width: 900px; margin: 0 auto; background: #fff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+            <div>
+              ${companyLogo}
+              <h1 style="font-size: 18px; font-weight: 800; margin: 0; color: #0f172a;">${companyName}</h1>
+              ${companyAddress ? `<p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">${companyAddress}</p>` : ""}
+              <p style="font-size: 10px; color: #94a3b8; margin: 2px 0 0 0;">Standar Akuntansi Keuangan Entitas Mikro Kecil Menengah (SAK EMKM)</p>
+            </div>
+            <div style="text-align: right;">
+              <div style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 14px;">
+                <span style="font-size: 12px; font-weight: 900; color: #1d4ed8; text-transform: uppercase;">SURAT JALAN &amp; LOGISTIK</span>
+              </div>
+              <h2 style="font-size: 16px; font-weight: 800; margin: 8px 0 0 0; color: #0f172a;">DAFTAR SURAT JALAN PENGIRIMAN</h2>
+              <p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">Dicetak Tanggal: ${today}</p>
+            </div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
+            <thead>
+              <tr style="background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 2px solid #cbd5e1;">
+                <th style="padding: 10px 8px; text-align: left; width: 35px;">No</th>
+                <th style="padding: 10px 8px; text-align: left;">Nomor SJ</th>
+                <th style="padding: 10px 8px; text-align: left;">Pelanggan</th>
+                <th style="padding: 10px 8px; text-align: left;">Ref Invoice</th>
+                <th style="padding: 10px 8px; text-align: left;">Ekspedisi &amp; Resi</th>
+                <th style="padding: 10px 8px; text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${deliveriesList.map((d: any, i: number) => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 8px; color: #64748b;">${i + 1}</td>
+                  <td style="padding: 8px; font-weight: 700; font-family: monospace; color: #0284c7;">${d.deliveryNumber}</td>
+                  <td style="padding: 8px; font-weight: 600; color: #0f172a;">${d.customerName}</td>
+                  <td style="padding: 8px; font-family: monospace; color: #64748b;">${d.reference || "-"}</td>
+                  <td style="padding: 8px; color: #334155;">
+                    <strong>${d.expedition || "Kurir"}</strong>
+                    ${d.trackingNumber ? `<br/><span style="font-size: 10px; font-family: monospace; color: #64748b;">Resi: ${d.trackingNumber}</span>` : ""}
+                  </td>
+                  <td style="padding: 8px; text-align: center;">
+                    <span style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; background: ${d.status === 'terkirim' ? '#ecfdf5' : '#eff6ff'}; color: ${d.status === 'terkirim' ? '#047857' : '#1d4ed8'};">
+                      ${d.status}
+                    </span>
+                  </td>
+                </tr>
+              `).join("")}
+              <tr style="background: #f8fafc; border-top: 2px solid #cbd5e1; font-weight: 800;">
+                <td colspan="4" style="padding: 10px 8px;">Total Pengiriman:</td>
+                <td colspan="2" style="padding: 10px 8px; text-align: right; color: #0284c7; font-family: monospace;">${deliveriesList.length} Dokumen Surat Jalan</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px; font-size: 11px;">
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Dibuat Oleh,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${currentUser?.name || "Staf Administrasi"}</p>
+            </div>
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Disetujui Oleh,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${storeConfig.storeOwner || "Pimpinan Perusahaan"}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (activeTab === "penjualan" && (activeSubFilter === "pemesanan" || activeSubFilter === "pemesanan-per-produk" || activeSubFilter === "tambah-pemesanan")) {
+      // 2. Pemesanan / Sales Order
+      title = `Daftar Pemesanan Penjualan (Sales Order) - ${companyName}`;
+      let ordersList: any[] = [];
+      try {
+        const raw = localStorage.getItem("kledo_sales_orders_v1");
+        if (raw) ordersList = JSON.parse(raw);
+      } catch (e) {}
+      if (!ordersList || ordersList.length === 0) {
+        ordersList = [
+          {
+            orderNumber: "SO/2026/0001",
+            customerName: "PT Sentosa Abadi",
+            reference: "PO-SENTOSA-09",
+            transactionDate: "2026-09-29",
+            dueDate: "2026-10-15",
+            status: "open",
+            downPayment: 1500000,
+            totalAmount: 5000000
+          }
+        ];
+      }
+
+      html = `
+        <div class="printable-document" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; color: #0f172a; max-width: 900px; margin: 0 auto; background: #fff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+            <div>
+              ${companyLogo}
+              <h1 style="font-size: 18px; font-weight: 800; margin: 0; color: #0f172a;">${companyName}</h1>
+              ${companyAddress ? `<p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">${companyAddress}</p>` : ""}
+              <p style="font-size: 10px; color: #94a3b8; margin: 2px 0 0 0;">Standar Akuntansi Keuangan Entitas Mikro Kecil Menengah (SAK EMKM)</p>
+            </div>
+            <div style="text-align: right;">
+              <div style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 14px;">
+                <span style="font-size: 12px; font-weight: 900; color: #1d4ed8; text-transform: uppercase;">SALES ORDER</span>
+              </div>
+              <h2 style="font-size: 16px; font-weight: 800; margin: 8px 0 0 0; color: #0f172a;">DAFTAR PEMESANAN PENJUALAN</h2>
+              <p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">Dicetak Tanggal: ${today}</p>
+            </div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
+            <thead>
+              <tr style="background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 2px solid #cbd5e1;">
+                <th style="padding: 10px 8px; text-align: left; width: 35px;">No</th>
+                <th style="padding: 10px 8px; text-align: left;">Nomor SO</th>
+                <th style="padding: 10px 8px; text-align: left;">Pelanggan</th>
+                <th style="padding: 10px 8px; text-align: left;">Jatuh Tempo</th>
+                <th style="padding: 10px 8px; text-align: center;">Status</th>
+                <th style="padding: 10px 8px; text-align: right;">Total Nilai</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ordersList.map((o: any, i: number) => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 8px; color: #64748b;">${i + 1}</td>
+                  <td style="padding: 8px; font-weight: 700; font-family: monospace; color: #0284c7;">${o.orderNumber}</td>
+                  <td style="padding: 8px; font-weight: 600; color: #0f172a;">${o.customerName}</td>
+                  <td style="padding: 8px; font-family: monospace; color: #64748b;">${o.dueDate}</td>
+                  <td style="padding: 8px; text-align: center; text-transform: uppercase; font-weight: 700; color: ${o.status === 'open' ? '#e11d48' : '#16a34a'};">${o.status}</td>
+                  <td style="padding: 8px; text-align: right; font-family: monospace; font-weight: 700;">Rp ${(o.totalAmount || 0).toLocaleString("id-ID")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px; font-size: 11px;">
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Dibuat Oleh,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${currentUser?.name || "Staf Administrasi"}</p>
+            </div>
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Disetujui Oleh,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${storeConfig.storeOwner || "Pimpinan Perusahaan"}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (activeTab === "pos") {
+      title = `Laporan Kasir POS & Rekap Produk Toko - ${companyName}`;
+      html = `
+        <div class="printable-document" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; color: #0f172a; max-width: 850px; margin: 0 auto; background: #fff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+            <div>
+              ${companyLogo}
+              <h1 style="font-size: 18px; font-weight: 800; margin: 0; color: #0f172a;">${companyName}</h1>
+              ${companyAddress ? `<p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">${companyAddress}</p>` : ""}
+              <p style="font-size: 10px; color: #94a3b8; margin: 2px 0 0 0;">Sistem Mesin Kasir Cepat Point of Sale (POS) SAK EMKM</p>
+            </div>
+            <div style="text-align: right;">
+              <div style="display: inline-block; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 4px 12px; margin-bottom: 6px;">
+                <span style="font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase;">KASIR POS AKTIF</span>
+              </div>
+              <h2 style="font-size: 16px; font-weight: 800; margin: 0; color: #0f172a;">REKAP KATALOG KASIR &amp; STOK</h2>
+              <p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">Dicetak: ${today}</p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; font-size: 11px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+              <span style="color: #64748b; display: block;">Operator Kasir:</span>
+              <strong style="color: #0f172a; font-size: 12px;">${currentUser?.name || "Kasir Utama"}</strong>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+              <span style="color: #64748b; display: block;">Kalkulator Pajak:</span>
+              <strong style="color: #047857; font-size: 12px;">PPN 11% (UU HPP No. 7)</strong>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+              <span style="color: #64748b; display: block;">Total Item Terdaftar:</span>
+              <strong style="color: #2563eb; font-size: 12px;">${stockItems.length} Produk Siap Jual</strong>
+            </div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
+            <thead>
+              <tr style="background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 2px solid #cbd5e1;">
+                <th style="padding: 10px 8px; text-align: left; width: 35px;">No</th>
+                <th style="padding: 10px 8px; text-align: left;">Kode SKU</th>
+                <th style="padding: 10px 8px; text-align: left;">Nama Produk Kasir</th>
+                <th style="padding: 10px 8px; text-align: center;">Satuan</th>
+                <th style="padding: 10px 8px; text-align: right;">Harga Jual</th>
+                <th style="padding: 10px 8px; text-align: center;">Sisa Stok</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stockItems.slice(0, 30).map((stk, i) => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 8px; color: #64748b;">${i + 1}</td>
+                  <td style="padding: 8px; font-weight: 700; font-family: monospace; color: #2563eb;">${stk.sku}</td>
+                  <td style="padding: 8px; font-weight: 600; color: #0f172a;">${stk.name}</td>
+                  <td style="padding: 8px; text-align: center; color: #64748b;">${stk.unit}</td>
+                  <td style="padding: 8px; text-align: right; font-family: monospace; font-weight: 700;">Rp ${stk.sellPrice.toLocaleString("id-ID")}</td>
+                  <td style="padding: 8px; text-align: center; font-weight: 700; color: ${stk.stock <= 5 ? '#e11d48' : '#0f172a'};">${stk.stock}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px; font-size: 11px;">
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Operator Kasir,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${currentUser?.name || "Kasir Toko"}</p>
+            </div>
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Penanggung Jawab,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${storeConfig.storeOwner || "Pimpinan Perusahaan"}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      // 3. Ringkasan Laporan Finansial & Halaman Aktif SAK EMKM
+      const pageDetails = getPageDetails(activeTab, activeSubFilter);
+      title = `${pageDetails.title} - ${companyName}`;
+      html = `
+        <div class="printable-document" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; color: #0f172a; max-width: 900px; margin: 0 auto; background: #fff;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+            <div>
+              ${companyLogo}
+              <h1 style="font-size: 18px; font-weight: 800; margin: 0; color: #0f172a;">${companyName}</h1>
+              ${companyAddress ? `<p style="font-size: 11px; color: #64748b; margin: 3px 0 0 0;">${companyAddress}</p>` : ""}
+              <p style="font-size: 10px; color: #94a3b8; margin: 2px 0 0 0;">Standar Akuntansi Keuangan Entitas Mikro Kecil Menengah (SAK EMKM)</p>
+            </div>
+            <div style="text-align: right;">
+              <div style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 14px;">
+                <span style="font-size: 12px; font-weight: 900; color: #1d4ed8; text-transform: uppercase;">${pageDetails.title}</span>
+              </div>
+              <p style="font-size: 11px; color: #64748b; margin: 8px 0 0 0;">Periode: Tahun Buku 2026 &bull; ${today}</p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+              <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Pendapatan</div>
+              <div style="font-size: 16px; font-weight: 800; color: #16a34a; margin-top: 4px; font-family: monospace;">Rp ${stats.revenue.toLocaleString("id-ID")}</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+              <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Beban &amp; Biaya</div>
+              <div style="font-size: 16px; font-weight: 800; color: #dc2626; margin-top: 4px; font-family: monospace;">Rp ${stats.expenses.toLocaleString("id-ID")}</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+              <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase;">Laba Bersih Usaha</div>
+              <div style="font-size: 16px; font-weight: 800; color: #2563eb; margin-top: 4px; font-family: monospace;">Rp ${stats.netProfit.toLocaleString("id-ID")}</div>
+            </div>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+            <h3 style="font-size: 12px; font-weight: 800; color: #0f172a; margin: 0 0 10px 0;">Indikator Kepatuhan Neraca &amp; Arus Kas:</h3>
+            <div style="display: flex; gap: 20px; font-size: 11px;">
+              <div>Status Neraca: <strong style="color: ${isNeracaBalanced ? '#16a34a' : '#d97706'};">${isNeracaBalanced ? 'Seimbang (Aktiva = Pasiva)' : 'Aktif'}</strong></div>
+              <div>Total Aset: <strong style="font-family: monospace;">Rp ${stats.totalAssets.toLocaleString("id-ID")}</strong></div>
+              <div>Total Ekuitas: <strong style="font-family: monospace;">Rp ${stats.totalEquity.toLocaleString("id-ID")}</strong></div>
+            </div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
+            <thead>
+              <tr style="background: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #94a3b8;">
+                <th style="padding: 8px; text-align: left;">Tanggal</th>
+                <th style="padding: 8px; text-align: left;">Keterangan / Transaksi</th>
+                <th style="padding: 8px; text-align: left;">Jenis</th>
+                <th style="padding: 8px; text-align: right;">Jumlah (Rp)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transactions.slice(0, 10).map((tx) => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 8px; font-family: monospace;">${tx.date}</td>
+                  <td style="padding: 8px; font-weight: 600;">${tx.description}</td>
+                  <td style="padding: 8px; color: #64748b;">${tx.type}</td>
+                  <td style="padding: 8px; text-align: right; font-family: monospace; font-weight: 700;">Rp ${tx.amount.toLocaleString("id-ID")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px; font-size: 11px;">
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Dibuat Oleh,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${currentUser?.name || "Staf Administrasi"}</p>
+            </div>
+            <div style="text-align: center; width: 180px;">
+              <p style="margin: 0 0 50px 0; color: #64748b;">Disetujui Oleh,</p>
+              <p style="margin: 0; font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 4px;">${storeConfig.storeOwner || "Pimpinan Perusahaan"}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    setNavbarPrintHtml(html);
+    setNavbarPrintTitle(title);
+    printInPageDOM(html, title);
+    setNavbarPrintModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans relative" id="applet-container">
@@ -642,6 +1169,7 @@ export default function App() {
           onSearchChange={setNavbarSearchQuery}
           onOpenActivationModal={() => setShowActivationModal(true)}
           isActivated={!!activeLicense}
+          onUpdateLogo={handleUpdateStoreLogo}
         />
 
         {/* Right Main Application Area */}
@@ -649,17 +1177,15 @@ export default function App() {
           isSidebarCollapsed ? "lg:pl-20" : "lg:pl-68"
         }`}>
           
-          {/* Top Application Header Bar */}
-          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 md:px-8 py-3 shadow-2xs space-y-3">
-            
-            {/* ROW 1: Informasi Toko Sembako Berkah Mandiri & Status Usaha */}
-            <div className="flex items-center justify-between gap-4 pb-2.5 border-b border-slate-100">
+          {/* Top Application Header Bar - Single Unified Navbar */}
+          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 px-3 sm:px-6 py-2.5 shadow-2xs">
+            <div className="flex items-center justify-between gap-3 min-w-0">
               
-              {/* Left: Mobile Toggle + Store Identity & Breadcrumbs */}
-              <div className="flex items-center gap-3 min-w-0">
+              {/* Left Group: Mobile Toggle, Store Brand, Breadcrumbs */}
+              <div className="flex items-center gap-2.5 min-w-0">
                 <button
                   onClick={() => setIsMobileSidebarOpen(true)}
-                  className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  className="lg:hidden p-1.5 rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer shrink-0"
                   title="Buka Menu Navigasi"
                 >
                   <Menu className="w-5 h-5" />
@@ -671,36 +1197,88 @@ export default function App() {
                     setActiveTab("pengaturan");
                     setActiveSubFilter("profil");
                   }}
-                  className="flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer shrink-0"
+                  className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer shrink-0"
                   title="Klik untuk membuka informasi toko & profil usaha"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-                    <Store className="w-4 h-4" />
+                  {/* Dynamic Logo Box with quick upload option */}
+                  <div 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      headerLogoInputRef.current?.click();
+                    }}
+                    title="Klik untuk mengganti logo perusahaan"
+                    className="relative group w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-xs cursor-pointer border border-slate-200 bg-indigo-600 text-white flex items-center justify-center"
+                  >
+                    {storeConfig.storeLogo ? (
+                      <img 
+                        src={storeConfig.storeLogo} 
+                        alt="Logo Usaha" 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <Store className="w-4 h-4 text-white" />
+                    )}
+                    {/* Hover overlay with Camera icon */}
+                    <div className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-[8px]">
+                      <Camera className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <input
+                      ref={headerLogoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 3 * 1024 * 1024) {
+                          alert("Ukuran berkas logo maksimal 3 MB!");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const dataUrl = ev.target?.result as string;
+                          if (dataUrl) handleUpdateStoreLogo(dataUrl);
+                        };
+                        reader.readAsDataURL(file);
+                        e.target.value = "";
+                      }}
+                    />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 hidden sm:block">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-xs font-bold text-slate-900 truncate">
+                      <h2 className="text-xs font-bold text-slate-900 truncate max-w-[130px] md:max-w-[170px]">
                         {storeConfig.storeName || "Toko Sembako Berkah Mandiri"}
                       </h2>
                       <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded font-mono">
                         SAK EMKM
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 truncate">
+                    <p className="text-[10px] text-slate-400 truncate">
                       {storeConfig.storeType} &bull; {storeConfig.storeCity}
                     </p>
                   </div>
                 </div>
 
                 {/* Breadcrumbs Navigation */}
-                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 min-w-0 pl-2 border-l border-slate-200">
+                <div className="hidden xl:flex items-center gap-1.5 text-xs text-slate-400 min-w-0 pl-2 border-l border-slate-200">
                   {pageInfo.parentTitle && (
                     <>
                       <span 
-                        className="hover:text-slate-600 transition cursor-pointer truncate max-w-[130px]"
+                        className="hover:text-slate-600 transition cursor-pointer truncate max-w-[110px]"
                         onClick={() => {
-                          setActiveTab(activeTab);
-                          setActiveSubFilter(undefined);
+                          if (pageInfo.parentTitle === "Kas & Bank") {
+                            setActiveTab("transaksi");
+                            setActiveSubFilter("mutasi");
+                          } else if (pageInfo.parentTitle === "Penjualan") {
+                            setActiveTab("penjualan");
+                            setActiveSubFilter("overview");
+                          } else if (pageInfo.parentTitle === "Pembelian") {
+                            setActiveTab("pembelian");
+                            setActiveSubFilter("overview");
+                          } else {
+                            setActiveTab(activeTab);
+                            setActiveSubFilter(undefined);
+                          }
                         }}
                       >
                         {pageInfo.parentTitle}
@@ -708,57 +1286,41 @@ export default function App() {
                       <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
                     </>
                   )}
-                  <span className="text-slate-800 font-bold truncate max-w-[180px]">
+                  <span className="text-slate-800 font-bold truncate max-w-[160px]">
                     {pageInfo.title}
                   </span>
                 </div>
               </div>
 
-              {/* Right: Kepatuhan Standar & Indikator Neraca */}
-              <div className="hidden md:flex items-center gap-2.5 shrink-0">
-                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Neraca {isNeracaBalanced ? "Seimbang" : "Aktif"}
-                </span>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  Tahun Buku 2026
-                </span>
-              </div>
-
-            </div>
-
-            {/* ROW 2 (DIBAWAH INFORMASI TOKO): Mode Pencarian, Buat Transaksi, Lisensi Hardware, Profil dan Pengaturan Usaha, Lihat Landing Page */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              
-              {/* Mode Pencarian */}
-              <div className="flex-1 min-w-[220px] max-w-md relative" id="header-search-container">
-                <div className="relative flex items-center">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+              {/* Center / Search Input */}
+              <div className="hidden md:flex flex-1 max-w-xs lg:max-w-sm relative" id="header-search-container">
+                <div className="relative w-full flex items-center">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
                   <input
                     type="text"
                     value={navbarSearchQuery}
                     onChange={(e) => setNavbarSearchQuery(e.target.value)}
                     placeholder="Cari menu, fitur, laporan, jurnal... (Ctrl+K)"
-                    className="w-full bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-800 text-xs pl-9 pr-14 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                    className="w-full bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-800 text-xs pl-8 pr-12 py-1.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
                   />
                   {navbarSearchQuery ? (
                     <button
                       onClick={() => setNavbarSearchQuery("")}
-                      className="absolute right-3 p-0.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="absolute right-2.5 p-0.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
                       title="Hapus pencarian"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   ) : (
-                    <kbd className="hidden sm:inline-block absolute right-2.5 text-[10px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs pointer-events-none">
+                    <kbd className="hidden lg:inline-block absolute right-2 text-[9px] font-mono text-slate-400 bg-white border border-slate-200 px-1 py-0.2 rounded shadow-2xs pointer-events-none">
                       ⌘K
                     </kbd>
                   )}
                 </div>
               </div>
 
-              {/* Action Toolbar Group */}
-              <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {/* Right Action Group: Buat Transaksi, NAVBAR PRINT (ACTIVE!), Lisensi, Profil, Keluar */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 
                 {/* 1. Buat Transaksi */}
                 <button
@@ -766,41 +1328,52 @@ export default function App() {
                     setActiveTab("transaksi");
                     setActiveSubFilter("input");
                   }}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer active:scale-95"
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-xs transition cursor-pointer active:scale-95 shrink-0"
                   title="Catat transaksi penjualan, pembelian, atau beban"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span>+ Buat Transaksi</span>
+                  <span className="hidden sm:inline">+ Buat Transaksi</span>
+                  <span className="sm:hidden">+ Transaksi</span>
                 </button>
 
-                {/* 2. Status Lisensi Hardware Anti-Pembajakan */}
+                {/* 2. NAVBAR PRINT (AKTIF & LANGSUNG BISA DICETAK KE PRINTER) */}
+                <button
+                  type="button"
+                  onClick={handleNavbarPrint}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-xs transition cursor-pointer active:scale-95 shrink-0"
+                  title="Cetak Dokumen / Halaman Aktif Langsung ke Printer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Cetak / Print</span>
+                </button>
+
+                {/* 3. Status Lisensi Hardware */}
                 <button
                   onClick={() => setShowActivationModal(true)}
-                  className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition cursor-pointer shadow-2xs ${
+                  className={`hidden sm:flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer shadow-2xs shrink-0 ${
                     activeLicense 
                       ? activeLicense.licenseType === "trial" 
                         ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100" 
                         : "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
                       : "bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 animate-pulse"
                   }`}
-                  title="Status Aktivasi & Serial Hardware Mesin Komputer"
+                  title="Status Lisensi Komputer"
                 >
                   <KeyRound className={`w-3.5 h-3.5 ${activeLicense ? (activeLicense.licenseType === "trial" ? "text-amber-600" : "text-emerald-600") : "text-rose-600"}`} />
-                  <span className="hidden sm:inline">
+                  <span className="hidden md:inline">
                     {activeLicense 
-                      ? `Lisensi: ${activeLicense.licenseType === "lifetime" ? "Seumur Hidup" : activeLicense.licenseType === "annual" ? "Tahunan" : "Trial 30 Hari"}`
-                      : "🔑 Aktivasi Hardware"}
+                      ? `Lisensi: ${activeLicense.licenseType === "lifetime" ? "Aktif" : activeLicense.licenseType === "annual" ? "Tahunan" : "Trial"}`
+                      : "🔑 Aktivasi"}
                   </span>
-                  <span className="sm:hidden">Lisensi</span>
                 </button>
 
-                {/* 3. Profil dan Pengaturan Usaha */}
+                {/* 4. Profil dan Pengaturan Usaha */}
                 <button
                   onClick={() => {
                     setActiveTab("pengaturan");
                     setActiveSubFilter("profil");
                   }}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition cursor-pointer ${
+                  className={`hidden lg:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition cursor-pointer shrink-0 ${
                     activeTab === "pengaturan"
                       ? "bg-slate-900 text-white border-slate-900 shadow-xs"
                       : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs"
@@ -808,50 +1381,30 @@ export default function App() {
                   title="Profil dan Pengaturan Usaha"
                 >
                   <Settings className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="hidden sm:inline">Profil &amp; Pengaturan Usaha</span>
-                  <span className="sm:hidden">Pengaturan</span>
+                  <span>Pengaturan</span>
                 </button>
 
-                {/* 4. Lihat Landing Page & Brosur Fitur */}
-                <button
-                  onClick={() => {
-                    setLandingInitialMode(currentUser?.isDemo ? "demo" : "login");
-                    setShowLandingPage(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 transition cursor-pointer shadow-2xs"
-                  title="Lihat Landing Page & Brosur Fitur"
-                >
-                  <Globe className="w-3.5 h-3.5 text-indigo-600" />
-                  <span className="hidden md:inline">Lihat Landing Page &amp; Brosur Fitur</span>
-                  <span className="md:hidden">Landing Page</span>
-                </button>
-
-                {/* 5. Profil User Account */}
+                {/* 5. User Profile Icon */}
                 <div 
                   onClick={() => {
                     setActiveTab("pengaturan");
                     setActiveSubFilter("profil");
                   }}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-slate-50 transition cursor-pointer"
-                  title={`Profil Pengguna: ${currentUser?.name || "Budi Santoso"}`}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-slate-50 transition cursor-pointer shrink-0"
+                  title={`Profil: ${currentUser?.name || "Budi Santoso"}`}
                 >
-                  <div className="w-6 h-6 rounded-lg bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-[11px] shadow-2xs">
+                  <div className="w-5 h-5 rounded-lg bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-[10px] shadow-2xs">
                     {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
                   </div>
-                  <div className="hidden lg:block text-left">
-                    <span className="block text-[11px] font-bold text-slate-800 leading-tight">
-                      {currentUser?.name || "Budi Santoso"}
-                    </span>
-                    <span className="block text-[9px] text-slate-400 leading-none">
-                      Profil
-                    </span>
-                  </div>
+                  <span className="hidden xl:inline text-[11px] font-bold text-slate-800 leading-tight">
+                    {currentUser?.name || "Budi"}
+                  </span>
                 </div>
 
-                {/* 5. Keluar dari akun */}
+                {/* 6. Keluar */}
                 <button
                   onClick={() => handleLogout("login")}
-                  className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
+                  className="flex items-center gap-1 p-1.5 sm:px-2 sm:py-1.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer shrink-0"
                   title="Keluar dari akun"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -859,14 +1412,23 @@ export default function App() {
                 </button>
 
               </div>
-
             </div>
-
           </header>
 
           {/* Main Workspace Body Content */}
-          <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+          <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 md:space-y-6">
             
+            {/* INTERCONNECTED & SYNCHRONIZED MODULE NAVBAR (KAS & BANK, PENJUALAN, PEMBELIAN, STOK) */}
+            <NavigationSyncBar
+              activeTab={activeTab}
+              activeSubFilter={activeSubFilter}
+              onNavigate={(tab, sub) => {
+                setActiveTab(tab);
+                setActiveSubFilter(sub);
+              }}
+              stockCount={stockItems.length}
+            />
+
             {/* ROUTING VIEW MODULES */}
             <section className="transition-all duration-300">
               {activeTab === "dashboard" && (
@@ -883,6 +1445,102 @@ export default function App() {
                 />
               )}
 
+              {/* Point of Sale (Kasir POS) */}
+              {activeTab === "pos" && (
+                <PointOfSale
+                  storeConfig={storeConfig}
+                  stockItems={stockItems}
+                  currentUser={currentUser}
+                  onAddTransaction={handleAddTransaction}
+                  onDeductStock={handleDeductStock}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Penjualan > Tagihan (List) OR Tambah Tagihan (Create Form) OR activeTab === "tagihan" */}
+              {(activeTab === "tagihan" || (activeTab === "penjualan" && (activeSubFilter === "tagihan" || activeSubFilter === "tambah-tagihan" || activeSubFilter === "form-tagihan"))) && (
+                <InvoiceManager
+                  stockItems={stockItems}
+                  storeConfig={storeConfig}
+                  currentUser={currentUser}
+                  onAddTransaction={handleAddTransaction}
+                  onDeductStock={handleDeductStock}
+                  initialViewMode={activeSubFilter === "tambah-tagihan" || activeSubFilter === "form-tagihan" ? "create" : "list"}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Penjualan > Pengiriman (Surat Jalan, Ekspedisi & Laporan Pengiriman) */}
+              {activeTab === "penjualan" && activeSubFilter === "pengiriman" && (
+                <DeliveryManager
+                  storeConfig={storeConfig}
+                  stockItems={stockItems}
+                  currentUser={currentUser}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Penjualan > Pemesanan (Sales Order, Tambah Pemesanan & Pemesanan per Produk) */}
+              {activeTab === "penjualan" && (activeSubFilter === "pemesanan" || activeSubFilter === "tambah-pemesanan" || activeSubFilter === "pemesanan-per-produk") && (
+                <OrderManager
+                  storeConfig={storeConfig}
+                  stockItems={stockItems}
+                  currentUser={currentUser}
+                  initialMode={activeSubFilter === "pemesanan-per-produk" ? "report" : "list"}
+                  initialShowCreate={activeSubFilter === "tambah-pemesanan"}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Penjualan > Overview (Default) */}
+              {activeTab === "penjualan" && 
+                activeSubFilter !== "tagihan" && 
+                activeSubFilter !== "tambah-tagihan" && 
+                activeSubFilter !== "form-tagihan" && 
+                activeSubFilter !== "pengiriman" && 
+                activeSubFilter !== "pemesanan" && 
+                activeSubFilter !== "tambah-pemesanan" && 
+                activeSubFilter !== "pemesanan-per-produk" && (
+                <SalesOverview
+                  transactions={transactions}
+                  stockItems={stockItems}
+                  storeConfig={storeConfig}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Pembelian > Tagihan Pembelian & Piutang (Sub Navbar) */}
+              {activeTab === "pembelian" && (
+                <PurchaseManager
+                  stockItems={stockItems}
+                  storeConfig={storeConfig}
+                  currentUser={currentUser}
+                  transactions={transactions}
+                  onAddTransaction={handleAddTransaction}
+                  initialSubTab={activeSubFilter as any || "tagihan"}
+                  onSubTabChange={(newSubTab) => setActiveSubFilter(newSubTab)}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
               {activeTab === "transaksi" && (
                 <TransactionFormAndJournal
                   transactions={transactions}
@@ -893,6 +1551,10 @@ export default function App() {
                   storeConfig={storeConfig}
                   initialSubTab={activeSubFilter as any}
                   onSubTabChange={(newSubTab) => setActiveSubFilter(newSubTab)}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
                 />
               )}
 
@@ -906,7 +1568,35 @@ export default function App() {
                 />
               )}
 
-              {activeTab === "laporan" && (
+              {/* Laporan > Pengiriman Penjualan OR Ongkos Kirim per Ekspedisi */}
+              {activeTab === "laporan" && (activeSubFilter === "pengiriman" || activeSubFilter === "ongkir") && (
+                <DeliveryManager
+                  storeConfig={storeConfig}
+                  stockItems={stockItems}
+                  currentUser={currentUser}
+                  initialMode={activeSubFilter === "ongkir" ? "ongkir" : "report"}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Laporan > Pemesanan per Produk */}
+              {activeTab === "laporan" && (activeSubFilter === "pemesanan" || activeSubFilter === "pemesanan-per-produk") && (
+                <OrderManager
+                  storeConfig={storeConfig}
+                  stockItems={stockItems}
+                  currentUser={currentUser}
+                  initialMode="report"
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {activeTab === "laporan" && activeSubFilter !== "pengiriman" && activeSubFilter !== "ongkir" && activeSubFilter !== "pemesanan" && activeSubFilter !== "pemesanan-per-produk" && (
                 <FinancialStatements
                   stats={stats}
                   transactions={transactions}
@@ -914,7 +1604,9 @@ export default function App() {
                   journal={journalEntries}
                   storeConfig={storeConfig}
                   onImportTransactions={handleImportExcelData}
+                  onUpdateTransactions={(newTxs) => saveState(newTxs, stockItems)}
                   initialReport={activeSubFilter as any}
+                  onReportChange={(newReport) => setActiveSubFilter(newReport)}
                 />
               )}
 
@@ -989,6 +1681,14 @@ export default function App() {
           setWelcomeBanner(`Perangkat berhasil diaktivasi! Lisensi ${lic.licenseType === 'lifetime' ? 'Seumur Hidup' : lic.licenseType === 'annual' ? 'Tahunan' : 'Trial'} aktif untuk ${lic.ownerName}.`);
         }}
         allowDismiss={true}
+      />
+
+      {/* Universal Print Modal for Navbar Print Button */}
+      <UniversalPrintModal
+        isOpen={navbarPrintModalOpen}
+        onClose={() => setNavbarPrintModalOpen(false)}
+        title={navbarPrintTitle || "Cetak Dokumen SAK EMKM"}
+        htmlContent={navbarPrintHtml}
       />
 
     </div>
