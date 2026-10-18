@@ -23,9 +23,12 @@ import {
   ShieldCheck,
   Scale,
   Bookmark,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Copy,
+  FileCode
 } from "lucide-react";
 import { CHART_OF_ACCOUNTS } from "../data/chartOfAccounts";
+import { BLUEPRINT_STEPS, downloadBlueprint, FULL_BLUEPRINT_MARKDOWN } from "../data/blueprintData";
 import { StoreConfig } from "../types";
 import { UniversalPrintModal } from "./UniversalPrintModal";
 import { downloadHtmlStringToPdf, buildStandaloneHtml } from "../utils/printHelper";
@@ -733,20 +736,36 @@ export function generateAccountGuideHtml(storeConfig?: StoreConfig): string {
 
 interface AccountDocumentationProps {
   storeConfig?: StoreConfig;
-  initialTab?: 'coa' | 'pedoman';
+  initialTab?: 'coa' | 'pedoman' | 'blueprint';
 }
 
 export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({ 
   storeConfig,
   initialTab = 'coa'
 }) => {
-  const [docTab, setDocTab] = useState<'coa' | 'pedoman'>(initialTab === 'pedoman' ? 'pedoman' : 'coa');
+  const [docTab, setDocTab] = useState<'coa' | 'pedoman' | 'blueprint'>(
+    initialTab === 'pedoman' ? 'pedoman' : initialTab === 'blueprint' ? 'blueprint' : 'coa'
+  );
 
   useEffect(() => {
     if (initialTab) {
       setDocTab(initialTab);
     }
   }, [initialTab]);
+
+  const [copiedStep, setCopiedStep] = useState<number | null>(null);
+  const [copiedAll, setCopiedAll] = useState<boolean>(false);
+
+  const handleCopyPrompt = (promptText: string, stepNum?: number) => {
+    navigator.clipboard.writeText(promptText);
+    if (stepNum !== undefined) {
+      setCopiedStep(stepNum);
+      setTimeout(() => setCopiedStep(null), 2500);
+    } else {
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2500);
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
@@ -879,6 +898,278 @@ export const AccountDocumentation: React.FC<AccountDocumentationProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Sub Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200/90 pb-3 no-print overflow-x-auto scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setDocTab('coa')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+            docTab === 'coa'
+              ? "bg-indigo-600 text-white shadow-xs"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-white border border-slate-200"
+          }`}
+        >
+          <BookText className="w-4 h-4" />
+          <span>Bagan Akun (COA)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDocTab('pedoman')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+            docTab === 'pedoman'
+              ? "bg-indigo-600 text-white shadow-xs"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-white border border-slate-200"
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>Pedoman SAK EMKM</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDocTab('blueprint')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+            docTab === 'blueprint'
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-white border border-slate-200"
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>Blueprint &amp; Master Prompt (.MD / .DOC)</span>
+          <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full font-bold">PROMPT</span>
+        </button>
+      </div>
+
+      {/* BLUEPRINT & MASTER PROMPT VIEW */}
+      {docTab === 'blueprint' && (
+        <div className="space-y-6 animate-fade-in" id="blueprint-sak-emkm-view">
+          {/* Header Blueprint */}
+          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-6 sm:p-8 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="bg-blue-500/20 text-blue-300 font-mono text-[10px] font-bold px-2 py-0.5 rounded border border-blue-400/30 uppercase tracking-widest flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                AI ARCHITECTURE &amp; PROMPT BLUEPRINT
+              </span>
+              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-400/30">
+                Format Markdown (.MD) &amp; Microsoft Word (.DOC)
+              </span>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight font-sans">
+                  Blueprint Master Prompt: Akuntan AI UMKM (SAK EMKM)
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1 leading-relaxed">
+                  Dokumen arsitektur lengkap berisi prompt bertahap yang siap di-copy paste ke AI Studio atau agen AI coding untuk membangun ulang aplikasi sejenis dari nol dengan standar akuntansi SAK EMKM resmi Indonesia.
+                </p>
+              </div>
+
+              {/* Download & Copy Buttons */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => downloadBlueprint('md')}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                  title="Unduh File Markdown (.md)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Unduh File .MD</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => downloadBlueprint('doc')}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                  title="Unduh Dokumen Word (.doc)"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Unduh Word .DOC</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCopyPrompt(FULL_BLUEPRINT_MARKDOWN)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95 border ${
+                    copiedAll 
+                      ? "bg-amber-400 text-slate-950 border-amber-400" 
+                      : "bg-white/10 hover:bg-white/20 text-white border-white/20"
+                  }`}
+                  title="Salin Seluruh Isi Dokumen Blueprint"
+                >
+                  {copiedAll ? <Check className="w-3.5 h-3.5 text-slate-950" /> : <Copy className="w-3.5 h-3.5 text-amber-300" />}
+                  <span>{copiedAll ? "Tersalin!" : "Salin Semua Prompt"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Info Box */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                STANDAR AKUNTANSI
+              </div>
+              <div className="text-sm font-bold text-slate-800">
+                SAK EMKM Resmi IAI
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Neraca seimbang, Laba Rugi akrual, Arus Kas metode langsung, dan 18 kode akun 4-digit.
+              </p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                TEKNOLOGI &amp; STACK
+              </div>
+              <div className="text-sm font-bold text-slate-800">
+                React 19, TS, Tailwind, Motion
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Framer Motion spring physics, Recharts visualisasi, dan Google Gemini SDK.
+              </p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                KEPATUHAN PAJAK
+              </div>
+              <div className="text-sm font-bold text-slate-800">
+                PPh 0.5% &amp; PPN 11%
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Sesuai PP 55/2022 dan UU Harmonisasi Peraturan Perpajakan (HPP).
+              </p>
+            </div>
+          </div>
+
+          {/* Master Prompt Steps (6 Cards) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileCode className="w-5 h-5 text-indigo-600" />
+                  6 Langkah Master Prompt Pembuatan Aplikasi
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Salin setiap prompt berikut secara berurutan pada AI Studio / agen coding untuk mereplikasi aplikasi ini.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {BLUEPRINT_STEPS.map((s) => (
+                <div key={s.step} className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                  <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono">
+                        {s.step}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                            {s.title}
+                          </h4>
+                          <span className="text-[9px] font-mono bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200/60">
+                            {s.badge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {s.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPrompt(s.prompt, s.step)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer self-start sm:self-auto shrink-0 ${
+                        copiedStep === s.step
+                          ? "bg-emerald-600 text-white"
+                          : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs"
+                      }`}
+                    >
+                      {copiedStep === s.step ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                      <span>{copiedStep === s.step ? "Tersalin!" : "Salin Prompt Ini"}</span>
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-slate-900 text-slate-100 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-72 select-text scrollbar-thin">
+                    <pre className="whitespace-pre-wrap">{s.prompt}</pre>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Accounting Matrix & Technical Solutions */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Scale className="w-5 h-5 text-indigo-600" />
+              Tabel Pasangan Jurnal Double-Entry Standar
+            </h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+                <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th className="p-2.5 border-b border-slate-200">Jenis Transaksi</th>
+                    <th className="p-2.5 border-b border-slate-200">Akun Debit (+)</th>
+                    <th className="p-2.5 border-b border-slate-200">Akun Kredit (-)</th>
+                    <th className="p-2.5 border-b border-slate-200">Keterangan Bisnis</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-600">
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">Penjualan Tunai Kasir</td>
+                    <td className="p-2.5 text-emerald-700 font-medium">1001 Kas &amp; Setara Kas</td>
+                    <td className="p-2.5 text-blue-700 font-medium">4001 Pendapatan Usaha</td>
+                    <td className="p-2.5">Kas bertambah di kasir fisik</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">Penjualan Tunai + PPN 11%</td>
+                    <td className="p-2.5 text-emerald-700 font-medium">1001 Kas (111%)</td>
+                    <td className="p-2.5 text-blue-700 font-medium">4001 Penjualan (100%) &amp; 2002 Hutang PPN (11%)</td>
+                    <td className="p-2.5">Kewajiban titipan pajak konsumen</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">HPP Barang Terjual</td>
+                    <td className="p-2.5 text-rose-700 font-medium">5001 Beban Pokok (HPP)</td>
+                    <td className="p-2.5 text-amber-700 font-medium">1003 Persediaan Barang</td>
+                    <td className="p-2.5">Mengurangi nilai persediaan aset</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">Penjualan Kredit (Piutang)</td>
+                    <td className="p-2.5 text-indigo-700 font-medium">1004 Piutang Usaha</td>
+                    <td className="p-2.5 text-blue-700 font-medium">4001 Pendapatan Usaha</td>
+                    <td className="p-2.5">Faktur tagihan tempo diterbitkan</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">Beli Stok Kredit (Supplier)</td>
+                    <td className="p-2.5 text-amber-700 font-medium">1003 Persediaan Barang</td>
+                    <td className="p-2.5 text-purple-700 font-medium">2001 Hutang Usaha</td>
+                    <td className="p-2.5">Tagihan pembelian masuk</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">Pelunasan Hutang Supplier</td>
+                    <td className="p-2.5 text-purple-700 font-medium">2001 Hutang Usaha</td>
+                    <td className="p-2.5 text-emerald-700 font-medium">1001 Kas / 1002 Bank</td>
+                    <td className="p-2.5">Pembayaran ditransfer ke vendor</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2.5 font-semibold text-slate-800">Beban Operasional Bulanan</td>
+                    <td className="p-2.5 text-rose-700 font-medium">6001 - 6006 Beban Ops</td>
+                    <td className="p-2.5 text-emerald-700 font-medium">1001 Kas &amp; Setara Kas</td>
+                    <td className="p-2.5">Listrik, air, gaji, internet, sewa</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {docTab === 'pedoman' && (
         <div className="space-y-6 animate-fade-in" id="pedoman-sak-emkm-view">

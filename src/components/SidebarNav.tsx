@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Home,
   Tag,
@@ -19,6 +20,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeft,
+  PanelLeftOpen,
   LayoutDashboard,
   FileText,
   Truck,
@@ -35,7 +37,8 @@ import {
   Camera,
   CornerDownRight,
   Plus,
-  Store
+  Store,
+  Factory
 } from "lucide-react";
 import { StoreConfig, UserAccount } from "../types";
 
@@ -209,10 +212,13 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
         { id: "lp-neraca", label: "Laporan Posisi Keuangan", icon: FileSpreadsheet, actionTab: "laporan", subFilter: "neraca" },
         { id: "lp-aruskas", label: "Laporan Arus Kas", icon: FileSpreadsheet, actionTab: "laporan", subFilter: "aruskas" },
         { id: "lp-neracasaldo", label: "Neraca Saldo (Trial Balance)", icon: FileSpreadsheet, actionTab: "laporan", subFilter: "neracasaldo" },
+        { id: "lp-pemesanan", label: "Pemesanan per Produk", icon: ShoppingCart, actionTab: "laporan", subFilter: "pemesanan" },
+        { id: "lp-pergerakan-inventori", label: "Pergerakan Stok Inventori", icon: Boxes, actionTab: "laporan", subFilter: "pergerakan-inventori" },
+        { id: "lp-pergerakan-gudang", label: "Pergerakan Stok Gudang", icon: Warehouse, actionTab: "laporan", subFilter: "pergerakan-gudang" },
+        { id: "lp-produksi", label: "Laporan Produksi", icon: Factory, actionTab: "laporan", subFilter: "produksi" },
         { id: "lp-piutang", label: "Daftar Piutang Pelanggan", icon: FileSpreadsheet, actionTab: "laporan", subFilter: "piutang" },
         { id: "lp-pengiriman", label: "Pengiriman Penjualan", icon: Truck, actionTab: "laporan", subFilter: "pengiriman" },
         { id: "lp-ongkir", label: "Ongkos Kirim per Ekspedisi", icon: Truck, actionTab: "laporan", subFilter: "ongkir" },
-        { id: "lp-pemesanan", label: "Pemesanan per Produk", icon: ShoppingCart, actionTab: "laporan", subFilter: "pemesanan" },
         { id: "lp-jurnal", label: "Buku Jurnal Umum", icon: FileSpreadsheet, actionTab: "transaksi", subFilter: "jurnal" },
         { id: "lp-bukubesar", label: "Buku Besar per Akun", icon: FileSpreadsheet, actionTab: "transaksi", subFilter: "bukubesar" },
         { id: "lp-ekspor", label: "Unduh Excel (.xlsx)", icon: FileSpreadsheet, actionTab: "laporan", subFilter: "ekspor" },
@@ -246,6 +252,14 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       icon: Building2,
       actionTab: "dokumen",
       subFilter: "pedoman"
+    },
+    {
+      id: "blueprint",
+      label: "Blueprint MD / Word",
+      icon: Sparkles,
+      actionTab: "dokumen",
+      subFilter: "blueprint",
+      badgeText: "PROMPT"
     },
     {
       id: "kontak",
@@ -288,6 +302,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       if (item.id === "inventori") return activeTab === "stok" && (activeSubFilter === "hpp" || activeSubFilter === "all");
       if (item.id === "akun") return activeTab === "dokumen" && activeSubFilter === "coa";
       if (item.id === "asettetap") return activeTab === "dokumen" && activeSubFilter === "pedoman";
+      if (item.id === "blueprint") return activeTab === "dokumen" && activeSubFilter === "blueprint";
       if (item.id === "kontak") return activeTab === "transaksi" && activeSubFilter === "invoice";
       if (item.id === "pajak") return activeTab === "pajak";
       if (item.id === "asisten") return activeTab === "asisten";
@@ -342,119 +357,241 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   const userName = currentUser?.name || storeConfig.storeOwner || "yonsi";
   const userInitial = (userName.charAt(0) || "Y").toUpperCase();
 
+  const [isLargeScreen, setIsLargeScreen] = useState(() => 
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
+
+  useEffect(() => {
+    const check = () => setIsLargeScreen(window.innerWidth >= 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const springConfig = {
+    type: "spring" as const,
+    stiffness: 300,
+    damping: 30,
+    mass: 0.8
+  };
+
   return (
     <>
-      {/* Mobile backdrop */}
-      {isMobileOpen && (
-        <div 
-          onClick={onCloseMobile}
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
-        />
-      )}
+      {/* Mobile backdrop with Framer Motion fade */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Main Sidebar Container - Light SaaS Kledo Style */}
-      <aside className={`fixed top-0 bottom-0 left-0 bg-white border-r border-slate-200 z-50 flex flex-col transition-all duration-300 select-none shadow-sm ${
-        isCollapsed ? "w-20" : "w-68"
-      } ${
-        isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      }`}>
+      {/* Main Sidebar Container - Light SaaS Kledo Style with Framer Motion Spring */}
+      <motion.aside
+        initial={false}
+        animate={{
+          width: isCollapsed ? 80 : 272,
+          x: isLargeScreen ? 0 : (isMobileOpen ? 0 : -280)
+        }}
+        transition={springConfig}
+        className="fixed top-0 bottom-0 left-0 bg-white border-r border-slate-200 z-50 flex flex-col select-none shadow-sm overflow-hidden"
+      >
 
-        {/* 1. Header: Company Brand + Collapse Button */}
-        <div className="p-3.5 border-b border-slate-100 flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {/* Logo box with custom company logo & instant upload capability */}
-            <div 
-              onClick={() => logoFileInputRef.current?.click()}
-              title="Klik untuk mengganti logo perusahaan"
-              className="relative group w-9 h-9 rounded-lg overflow-hidden shrink-0 shadow-xs cursor-pointer border border-slate-200"
-            >
-              {storeConfig.storeLogo ? (
-                <img 
-                  src={storeConfig.storeLogo} 
-                  alt={companyName} 
-                  className="w-full h-full object-cover" 
-                />
-              ) : (
-                <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center font-black tracking-tight text-xs">
-                  kledo
+        {/* 1. Header: Company Brand + Collapse/Expand Toggle with Motion Transition */}
+        <div className="border-b border-slate-100 overflow-hidden shrink-0">
+          <AnimatePresence mode="wait" initial={false}>
+            {isCollapsed ? (
+              <motion.div
+                key="collapsed-header"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.18 }}
+                className="py-3 px-2 flex flex-col items-center gap-2.5"
+              >
+                {/* Logo box */}
+                <div 
+                  onClick={() => logoFileInputRef.current?.click()}
+                  title="Klik untuk mengganti logo perusahaan"
+                  className="relative group w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-xs cursor-pointer border border-slate-200"
+                >
+                  {storeConfig.storeLogo ? (
+                    <img 
+                      src={storeConfig.storeLogo} 
+                      alt={companyName} 
+                      className="w-full h-full object-cover" 
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center font-black tracking-tight text-xs">
+                      kledo
+                    </div>
+                  )}
+                  {/* Hover overlay with Camera icon to change logo */}
+                  <div className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-[8px] font-bold">
+                    <Camera className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <input
+                    ref={logoFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileLogoChange}
+                  />
                 </div>
-              )}
-              {/* Hover overlay with Camera icon to change logo */}
-              <div className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-[8px] font-bold">
-                <Camera className="w-3.5 h-3.5 text-white" />
-                <span className="scale-75">Ubah</span>
-              </div>
-              <input
-                ref={logoFileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileLogoChange}
-              />
-            </div>
-            
-            {!isCollapsed && (
-              <div className="min-w-0 flex-1">
-                <div className="font-extrabold text-[13px] text-slate-800 leading-tight truncate">
-                  {companyName}
+
+                {/* Icon scroll / expand toggle: Diposisikan rapi DI BAWAH LOGO tanpa tabrakan */}
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={onToggleCollapse}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50/80 border border-slate-200/80 hover:border-blue-200 transition-all cursor-pointer shadow-2xs group"
+                  title="Buka / Perluas Sidebar"
+                >
+                  <PanelLeftOpen className="w-4 h-4 transition-transform group-hover:scale-110" />
+                </motion.button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="expanded-header"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+                className="p-3.5 flex items-center justify-between gap-2.5"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {/* Logo box with custom company logo & instant upload capability */}
+                  <div 
+                    onClick={() => logoFileInputRef.current?.click()}
+                    title="Klik untuk mengganti logo perusahaan"
+                    className="relative group w-9 h-9 rounded-lg overflow-hidden shrink-0 shadow-xs cursor-pointer border border-slate-200"
+                  >
+                    {storeConfig.storeLogo ? (
+                      <img 
+                        src={storeConfig.storeLogo} 
+                        alt={companyName} 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-blue-600 text-white flex items-center justify-center font-black tracking-tight text-xs">
+                        kledo
+                      </div>
+                    )}
+                    {/* Hover overlay with Camera icon to change logo */}
+                    <div className="absolute inset-0 bg-black/60 text-white opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-[8px] font-bold">
+                      <Camera className="w-3.5 h-3.5 text-white" />
+                      <span className="scale-75">Ubah</span>
+                    </div>
+                    <input
+                      ref={logoFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileLogoChange}
+                    />
+                  </div>
+                  
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-[13px] text-slate-800 leading-tight truncate">
+                      {companyName}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                      Elite Free Trial
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                  Elite Free Trial
-                </div>
-              </div>
+
+                {/* Collapse/Expand Toggle */}
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={onToggleCollapse}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
+                  title="Ciutkan Sidebar"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </motion.button>
+              </motion.div>
             )}
-          </div>
-
-          {/* Collapse/Expand Toggle */}
-          <button
-            onClick={onToggleCollapse}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
-            title={isCollapsed ? "Buka Sidebar" : "Ciutkan Sidebar"}
-          >
-            {isCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-          </button>
+          </AnimatePresence>
         </div>
 
-        {/* 2. Search & Trial Alert Banner (Hidden if Collapsed) */}
-        {!isCollapsed && (
-          <div className="px-3.5 pt-3 pb-1">
-            {/* Search Input */}
-            <div className="relative flex items-center">
-              <input
-                type="text"
-                placeholder="Cari menu"
-                value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
-                className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-700 text-xs pl-3 pr-8 py-1.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
-              {localSearch && (
-                <button
-                  onClick={() => setLocalSearch("")}
-                  className="absolute right-7 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-
-            {/* Trial Warning Banner (Exactly matching Kledo screenshot) */}
-            <div 
-              onClick={onOpenActivationModal}
-              className="mt-2.5 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-amber-900 text-[11px] leading-relaxed cursor-pointer hover:bg-amber-100/80 transition shadow-2xs group"
+        {/* 2. Search & Trial Alert Banner */}
+        <AnimatePresence mode="wait" initial={false}>
+          {!isCollapsed ? (
+            <motion.div
+              key="expanded-search-banner"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="px-3.5 pt-3 pb-1 overflow-hidden shrink-0"
             >
-              <div className="flex items-start gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span>Akses free trial Anda akan berakhir <strong>8 hari lagi</strong>. </span>
-                  <span className="text-amber-800 font-bold underline group-hover:text-amber-950">
-                    Upgrade Sekarang.
-                  </span>
+              {/* Search Input: Icon di sebelah kiri dan tombol hapus di kanan agar tidak bertabrakan */}
+              <div className="relative flex items-center">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Cari menu"
+                  value={localSearch}
+                  onChange={(e) => setLocalSearch(e.target.value)}
+                  className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-700 text-xs pl-8 pr-7 py-1.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                />
+                {localSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setLocalSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded text-xs font-bold transition cursor-pointer"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Trial Warning Banner (Exactly matching Kledo screenshot) */}
+              <div 
+                onClick={onOpenActivationModal}
+                className="mt-2.5 p-2.5 rounded-lg bg-amber-50/90 border border-amber-200/90 text-amber-900 text-[11px] leading-relaxed cursor-pointer hover:bg-amber-100/80 transition shadow-2xs group"
+              >
+                <div className="flex items-start gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span>Akses free trial Anda akan berakhir <strong>8 hari lagi</strong>. </span>
+                    <span className="text-amber-800 font-bold underline group-hover:text-amber-950">
+                      Upgrade Sekarang.
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          ) : (
+            /* Search icon shortcut saat collapsed */
+            <motion.div
+              key="collapsed-search-shortcut"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="pt-2 px-2 flex justify-center border-b border-slate-100 pb-2 overflow-hidden shrink-0"
+            >
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={onToggleCollapse}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                title="Cari menu (Buka Sidebar)"
+              >
+                <Search className="w-4 h-4" />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 3. Navigation Menu Items List */}
         <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1 custom-scrollbar">
@@ -466,17 +603,21 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             return (
               <div key={item.id} className="space-y-0.5">
                 {/* Menu Item Button */}
-                <button
+                <motion.button
+                  whileHover={{ x: isCollapsed ? 0 : 2 }}
+                  whileTap={{ scale: 0.98 }}
                   type="button"
                   onClick={() => handleTopClick(item)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer group ${
+                  className={`w-full flex items-center ${
+                    isCollapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2"
+                  } rounded-lg text-xs font-medium transition cursor-pointer group ${
                     isActive && !item.subItems
                       ? "bg-blue-50 text-blue-600 font-bold"
                       : "text-slate-700 hover:bg-slate-50 hover:text-blue-600"
                   }`}
                   title={isCollapsed ? item.label : undefined}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"} min-w-0`}>
                     {/* Blue Icon matching Kledo */}
                     <Icon className={`w-4 h-4 shrink-0 transition-transform ${
                       isActive ? "text-blue-600" : "text-blue-500 group-hover:scale-105"
@@ -501,96 +642,130 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                       )}
                     </span>
                   )}
-                </button>
+                </motion.button>
 
-                {/* Submenu Accordion (when expanded and not collapsed) */}
-                {!isCollapsed && isOpen && item.subItems && (
-                  <div className="pl-4 pr-1 py-1 space-y-0.5 border-l-2 border-slate-100 ml-4.5 my-0.5">
-                    {item.subItems.map((sub) => {
-                      const SubIcon = sub.icon || FileText;
-                      const subActive = isSubActive(sub);
+                {/* Submenu Accordion (when expanded and not collapsed) with Framer Motion AnimatePresence */}
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && isOpen && item.subItems && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: [0.25, 1, 0.5, 1] }}
+                      className="overflow-hidden pl-4 pr-1 py-1 space-y-0.5 border-l-2 border-slate-100 ml-4.5 my-0.5"
+                    >
+                      {item.subItems.map((sub) => {
+                        const SubIcon = sub.icon || FileText;
+                        const subActive = isSubActive(sub);
 
-                      return (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={() => handleSubClick(sub)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] transition text-left cursor-pointer group ${
-                            sub.isNestedChild ? "ml-3 pl-2.5 border-l-2 border-indigo-200 bg-indigo-50/40 text-indigo-900" : ""
-                          } ${
-                            subActive
-                              ? "bg-blue-50 text-blue-600 font-bold shadow-2xs"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {sub.isNestedChild ? (
-                              <CornerDownRight className={`w-3.5 h-3.5 shrink-0 ${
-                                subActive ? "text-indigo-600 font-bold" : "text-indigo-400 group-hover:text-indigo-600"
-                              }`} />
-                            ) : (
-                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${
-                                subActive ? "text-blue-600" : "text-blue-400 group-hover:text-blue-600"
-                              }`} />
+                        return (
+                          <motion.button
+                            whileHover={{ x: 2 }}
+                            whileTap={{ scale: 0.98 }}
+                            key={sub.id}
+                            type="button"
+                            onClick={() => handleSubClick(sub)}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] transition text-left cursor-pointer group ${
+                              sub.isNestedChild ? "ml-3 pl-2.5 border-l-2 border-indigo-200 bg-indigo-50/40 text-indigo-900" : ""
+                            } ${
+                              subActive
+                                ? "bg-blue-50 text-blue-600 font-bold shadow-2xs"
+                                : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {sub.isNestedChild ? (
+                                <CornerDownRight className={`w-3.5 h-3.5 shrink-0 ${
+                                  subActive ? "text-indigo-600 font-bold" : "text-indigo-400 group-hover:text-indigo-600"
+                                }`} />
+                              ) : (
+                                <SubIcon className={`w-3.5 h-3.5 shrink-0 ${
+                                  subActive ? "text-blue-600" : "text-blue-400 group-hover:text-blue-600"
+                                }`} />
+                              )}
+                              <span className="truncate">{sub.label}</span>
+                            </div>
+
+                            {sub.badgeText && (
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                                sub.isNestedChild 
+                                  ? "bg-indigo-100 text-indigo-700 font-mono" 
+                                  : "bg-blue-100 text-blue-700"
+                              }`}>
+                                {sub.badgeText}
+                              </span>
                             )}
-                            <span className="truncate">{sub.label}</span>
-                          </div>
-
-                          {sub.badgeText && (
-                            <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
-                              sub.isNestedChild 
-                                ? "bg-indigo-100 text-indigo-700 font-mono" 
-                                : "bg-blue-100 text-blue-700"
-                            }`}>
-                              {sub.badgeText}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                          </motion.button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}
         </div>
 
         {/* 4. Bottom Footer: User Profile Card + Logout */}
-        <div className="p-3 border-t border-slate-200/80 bg-white">
-          <div className="flex items-center justify-between gap-2">
+        <div className={`p-3 border-t border-slate-200/80 bg-white shrink-0 ${isCollapsed ? "flex flex-col items-center gap-2" : ""}`}>
+          <div className={`flex items-center ${isCollapsed ? "justify-center" : "justify-between"} gap-2 w-full`}>
             <div className="flex items-center gap-2.5 min-w-0">
               {/* Blue Avatar Box */}
-              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+              <div 
+                className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs"
+                title={isCollapsed ? `${userName} (${companyName})` : undefined}
+              >
                 {userInitial}
               </div>
 
               {!isCollapsed && (
-                <div className="min-w-0 flex-1">
+                <motion.div 
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="min-w-0 flex-1"
+                >
                   <div className="text-xs font-bold text-slate-800 leading-tight truncate">
                     {userName}
                   </div>
                   <div className="text-[10px] text-slate-400 truncate mt-0.5">
                     {companyName}
                   </div>
-                </div>
+                </motion.div>
               )}
             </div>
 
             {/* Logout Button */}
             {!isCollapsed && (
-              <button
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
                 type="button"
                 onClick={onLogout}
                 className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer shrink-0"
                 title="Keluar dari Aplikasi"
               >
                 <LogOut className="w-4 h-4" />
-              </button>
+              </motion.button>
             )}
           </div>
+
+          {isCollapsed && (
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              type="button"
+              onClick={onLogout}
+              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer"
+              title="Keluar dari Aplikasi"
+            >
+              <LogOut className="w-4 h-4" />
+            </motion.button>
+          )}
         </div>
 
-      </aside>
+      </motion.aside>
     </>
   );
 };

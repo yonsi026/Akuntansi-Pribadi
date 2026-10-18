@@ -401,7 +401,7 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({
             {/* Filter & Search Bar for Ledger Table */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mt-4 mb-3">
               <div className="relative flex-1 max-w-sm">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={tableSearch}

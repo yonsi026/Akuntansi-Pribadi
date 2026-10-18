@@ -22,7 +22,8 @@ import {
   BrainCircuit, 
   Sparkles,
   ArrowUpRight,
-  Tag
+  Tag,
+  Factory
 } from "lucide-react";
 
 interface NavigationSyncBarProps {
@@ -399,6 +400,10 @@ export const NavigationSyncBar: React.FC<NavigationSyncBarProps> = ({
       { id: "neraca", label: "Posisi Keuangan (Neraca)", icon: Scale, action: () => onNavigate("laporan", "neraca"), isActive: activeSubFilter === "neraca" },
       { id: "aruskas", label: "Arus Kas", icon: Wallet, action: () => onNavigate("laporan", "aruskas"), isActive: activeSubFilter === "aruskas" },
       { id: "neracasaldo", label: "Neraca Saldo", icon: Building2, action: () => onNavigate("laporan", "neracasaldo"), isActive: activeSubFilter === "neracasaldo" },
+      { id: "pemesanan", label: "Pemesanan per Produk", icon: ShoppingCart, action: () => onNavigate("laporan", "pemesanan"), isActive: activeSubFilter === "pemesanan" || activeSubFilter === "pemesanan-per-produk" },
+      { id: "pergerakan-inventori", label: "Pergerakan Stok Inventori", icon: Boxes, action: () => onNavigate("laporan", "pergerakan-inventori"), isActive: activeSubFilter === "pergerakan-inventori" },
+      { id: "pergerakan-gudang", label: "Pergerakan Stok Gudang", icon: Warehouse, action: () => onNavigate("laporan", "pergerakan-gudang"), isActive: activeSubFilter === "pergerakan-gudang" },
+      { id: "produksi", label: "Laporan Produksi", icon: Factory, action: () => onNavigate("laporan", "produksi"), isActive: activeSubFilter === "produksi" },
       { id: "piutang", label: "Piutang", icon: Receipt, action: () => onNavigate("laporan", "piutang"), isActive: activeSubFilter === "piutang" },
       { id: "pengiriman", label: "Pengiriman", icon: Truck, action: () => onNavigate("laporan", "pengiriman"), isActive: activeSubFilter === "pengiriman" },
       { id: "ekspor", label: "Ekspor / Import", icon: Download, action: () => onNavigate("laporan", "ekspor"), isActive: activeSubFilter === "ekspor" || activeSubFilter === "import" },
@@ -495,7 +500,8 @@ export const NavigationSyncBar: React.FC<NavigationSyncBarProps> = ({
   if (activeTab === "dokumen") {
     const docTabs = [
       { id: "coa", label: "Bagan Akun (COA)", icon: BookOpen, action: () => onNavigate("dokumen", "coa"), isActive: activeSubFilter === "coa" || !activeSubFilter },
-      { id: "pedoman", label: "Pedoman SAK EMKM", icon: FileText, action: () => onNavigate("dokumen", "pedoman"), isActive: activeSubFilter === "pedoman" }
+      { id: "pedoman", label: "Pedoman SAK EMKM", icon: FileText, action: () => onNavigate("dokumen", "pedoman"), isActive: activeSubFilter === "pedoman" },
+      { id: "blueprint", label: "Blueprint & Prompt MD / Word", icon: Sparkles, action: () => onNavigate("dokumen", "blueprint"), isActive: activeSubFilter === "blueprint" }
     ];
 
     return (

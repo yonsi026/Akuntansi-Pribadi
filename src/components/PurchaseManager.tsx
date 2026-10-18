@@ -24,7 +24,8 @@ import {
   X,
   TrendingDown,
   TrendingUp,
-  Boxes
+  Boxes,
+  LayoutDashboard
 } from "lucide-react";
 import { StockItem, StoreConfig, Transaction, UserAccount } from "../types";
 import { formatIDR } from "./FinanceDashboard";
@@ -67,7 +68,7 @@ interface PurchaseManagerProps {
   onNavigateToTab?: (tab: string, sub?: string) => void;
 }
 
-const INITIAL_PURCHASE_BILLS: PurchaseBill[] = [
+export const INITIAL_PURCHASE_BILLS: PurchaseBill[] = [
   {
     id: "bill-001",
     billNumber: "BILL/2026/001",
@@ -414,6 +415,23 @@ export const PurchaseManager: React.FC<PurchaseManagerProps> = ({
       <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           
+          {/* Sub Navbar: Overview */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigateToTab) onNavigateToTab("pembelian", "overview");
+              else handleTabChange("overview");
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+              activeSubTab === "overview"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>Overview</span>
+          </button>
+
           {/* Sub Navbar: Tagihan Pembelian */}
           <button
             type="button"

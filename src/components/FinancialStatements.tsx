@@ -61,6 +61,7 @@ import {
 import { formatIDR } from "./FinanceDashboard";
 import { UniversalPrintModal } from "./UniversalPrintModal";
 import { PrintTemplate, triggerPrintA4, ReportData } from "./PrintTemplate";
+import { IncomeStatementBarChart } from "./IncomeStatementBarChart";
 
 interface FinancialStatementsProps {
   stats: FinancialStats;
@@ -2114,6 +2115,14 @@ export const FinancialStatements: React.FC<FinancialStatementsProps> = ({
               <ReportHeader
                 title="LAPORAN LABA RUGI (INCOME STATEMENT)"
                 subtitle={`Periode: ${getPeriodLabel()} • Standar Akrual SAK EMKM`}
+              />
+
+              {/* Visualisasi Grafik Batang Tren Pendapatan vs Beban Bulanan (Recharts Bar Chart) */}
+              <IncomeStatementBarChart
+                transactions={transactions}
+                selectedYear={selectedYear}
+                onYearChange={setSelectedYear}
+                availableYears={availableYears}
               />
 
               <div className="space-y-4">

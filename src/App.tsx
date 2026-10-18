@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -20,13 +21,20 @@ import {
   Search,
   PlusCircle,
   ChevronRight,
+  ChevronDown,
   PanelLeft,
   Store,
   X,
   ShieldCheck,
   KeyRound,
   Camera,
-  Printer
+  Printer,
+  Clock,
+  BarChart3,
+  Scale,
+  Activity,
+  Receipt,
+  FileText
 } from "lucide-react";
 import { Transaction, StockItem, FinancialStats, StoreConfig, UserAccount } from "./types";
 import { 
@@ -49,10 +57,12 @@ import { AccountDocumentation } from "./components/AccountDocumentation";
 import { LandingPage } from "./components/LandingPage";
 import { ActivationModal } from "./components/ActivationModal";
 import { SalesOverview } from "./components/SalesOverview";
+import { PurchaseOverview } from "./components/PurchaseOverview";
 import { InvoiceManager } from "./components/InvoiceManager";
 import { PurchaseManager } from "./components/PurchaseManager";
 import { DeliveryManager } from "./components/DeliveryManager";
 import { OrderManager } from "./components/OrderManager";
+import { StockReportsManager } from "./components/StockReportsManager";
 import { PointOfSale } from "./components/PointOfSale";
 import { NavigationSyncBar } from "./components/NavigationSyncBar";
 import { UniversalPrintModal } from "./components/UniversalPrintModal";
@@ -170,7 +180,16 @@ export const getPageDetails = (tab: string, subFilter?: string): { title: string
       return { title: "Ongkos Kirim per Ekspedisi", subtitle: "Laporan Biaya & Statistik Pengiriman per Ekspedisi", parentTitle: "Laporan Keuangan" };
     }
     if (subFilter === "pemesanan" || subFilter === "pemesanan-per-produk") {
-      return { title: "Pemesanan per Produk", subtitle: "Laporan Rekapitulasi Pemesanan Produk, Kuantitas & Rata-rata Harga", parentTitle: "Laporan Keuangan" };
+      return { title: "Pemesanan per Produk", subtitle: "Laporan Rekapitulasi Pemesanan Produk, Kuantitas & Rata-rata Harga", parentTitle: "Laporan" };
+    }
+    if (subFilter === "pergerakan-inventori") {
+      return { title: "Pergerakan Stok Inventori", subtitle: "Laporan Riwayat Mutasi Masuk, Keluar & Nilai Akhir Persediaan", parentTitle: "Laporan" };
+    }
+    if (subFilter === "pergerakan-gudang") {
+      return { title: "Pergerakan Stok Gudang", subtitle: "Laporan Mutasi Kuantitas & Saldo Barang per Lokasi Gudang", parentTitle: "Laporan" };
+    }
+    if (subFilter === "produksi") {
+      return { title: "Laporan Produksi", subtitle: "Laporan Perhitungan Nilai Produksi, HPP & Biaya Manufaktur", parentTitle: "Laporan" };
     }
     if (subFilter === "ekspor") {
       return { title: "Unduh File Excel (.xlsx)", subtitle: "Ekspor Seluruh Laporan Keuangan ke Microsoft Excel", parentTitle: "Laporan Keuangan" };
@@ -207,11 +226,177 @@ export const getPageDetails = (tab: string, subFilter?: string): { title: string
   return { title: "Ringkasan Toko", subtitle: "Executive Dashboard & Posisi Finansial SAK EMKM" };
 };
 
+export interface RecentReportItem {
+  id: string;
+  title: string;
+  subFilter: string;
+  subtitle: string;
+  iconName: string;
+  viewedAt: number;
+}
+
+const FINANCIAL_REPORTS_METADATA: Record<string, { title: string; subtitle: string; iconName: string }> = {
+  labarugi: {
+    title: "Laporan Laba Rugi",
+    subtitle: "Pendapatan, HPP & Laba Bersih SAK EMKM",
+    iconName: "chart"
+  },
+  neraca: {
+    title: "Posisi Keuangan (Neraca)",
+    subtitle: "Aset, Liabilitas & Ekuitas Pemilik",
+    iconName: "scale"
+  },
+  aruskas: {
+    title: "Laporan Arus Kas",
+    subtitle: "Kas Operasi, Investasi & Pendanaan",
+    iconName: "activity"
+  },
+  neracasaldo: {
+    title: "Neraca Saldo (Trial Balance)",
+    subtitle: "Keseimbangan Debit & Kredit Akun",
+    iconName: "receipt"
+  },
+  piutang: {
+    title: "Daftar Piutang & Aging",
+    subtitle: "Rekap Saldo & Jatuh Tempo Piutang",
+    iconName: "file"
+  },
+  pengiriman: {
+    title: "Pengiriman Penjualan",
+    subtitle: "Rincian Surat Jalan & Ekspedisi",
+    iconName: "file"
+  },
+  ongkir: {
+    title: "Ongkir per Ekspedisi",
+    subtitle: "Statistik Biaya Pengiriman Ekspedisi",
+    iconName: "file"
+  },
+  pemesanan: {
+    title: "Pemesanan per Produk",
+    subtitle: "Rekap Kuantitas & Rata-rata Harga",
+    iconName: "boxes"
+  },
+  "pergerakan-inventori": {
+    title: "Pergerakan Stok Inventori",
+    subtitle: "Riwayat Mutasi Masuk & Keluar Stok",
+    iconName: "boxes"
+  },
+  "pergerakan-gudang": {
+    title: "Pergerakan Stok Gudang",
+    subtitle: "Mutasi Saldo per Lokasi Gudang",
+    iconName: "boxes"
+  },
+  produksi: {
+    title: "Laporan Produksi",
+    subtitle: "Perhitungan Nilai & Biaya Manufaktur",
+    iconName: "file"
+  }
+};
+
+const DEFAULT_RECENT_REPORTS: RecentReportItem[] = [
+  {
+    id: "labarugi",
+    subFilter: "labarugi",
+    title: "Laporan Laba Rugi",
+    subtitle: "Pendapatan, HPP & Laba Bersih SAK EMKM",
+    iconName: "chart",
+    viewedAt: Date.now() - 1000 * 60 * 5
+  },
+  {
+    id: "neraca",
+    subFilter: "neraca",
+    title: "Posisi Keuangan (Neraca)",
+    subtitle: "Aset, Liabilitas & Ekuitas Pemilik",
+    iconName: "scale",
+    viewedAt: Date.now() - 1000 * 60 * 20
+  },
+  {
+    id: "aruskas",
+    subFilter: "aruskas",
+    title: "Laporan Arus Kas",
+    subtitle: "Kas Operasi, Investasi & Pendanaan",
+    iconName: "activity",
+    viewedAt: Date.now() - 1000 * 60 * 60
+  }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [activeSubFilter, setActiveSubFilter] = useState<string | undefined>(undefined);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isLargeScreen, setIsLargeScreen] = useState(() => 
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
+
+  useEffect(() => {
+    const check = () => setIsLargeScreen(window.innerWidth >= 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Recent Documents (Laporan Terakhir) States & Persistence
+  const LOCAL_STORAGE_RECENT_REPORTS_KEY = "akuntan_ai_recent_reports_v1";
+  const [recentReports, setRecentReports] = useState<RecentReportItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_RECENT_REPORTS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 3);
+      }
+    } catch (e) {
+      console.error("Failed to load recent reports", e);
+    }
+    return DEFAULT_RECENT_REPORTS;
+  });
+  const [isRecentDocsOpen, setIsRecentDocsOpen] = useState(false);
+  const recentDocsRef = useRef<HTMLDivElement | null>(null);
+
+  // Close recent documents dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (recentDocsRef.current && !recentDocsRef.current.contains(e.target as Node)) {
+        setIsRecentDocsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Automatically update the recent documents list whenever a financial report is opened
+  useEffect(() => {
+    if (activeTab === "laporan") {
+      const reportKey = activeSubFilter || "labarugi";
+      const meta = FINANCIAL_REPORTS_METADATA[reportKey];
+      if (meta) {
+        setRecentReports(prev => {
+          const filtered = prev.filter(r => r.subFilter !== reportKey);
+          const newItem: RecentReportItem = {
+            id: reportKey,
+            subFilter: reportKey,
+            title: meta.title,
+            subtitle: meta.subtitle,
+            iconName: meta.iconName,
+            viewedAt: Date.now()
+          };
+          const updated = [newItem, ...filtered].slice(0, 3);
+          try {
+            localStorage.setItem(LOCAL_STORAGE_RECENT_REPORTS_KEY, JSON.stringify(updated));
+          } catch (e) {
+            console.error(e);
+          }
+          return updated;
+        });
+      }
+    }
+  }, [activeTab, activeSubFilter]);
+
+  const handleOpenRecentReport = (subFilter: string) => {
+    setActiveTab("laporan");
+    setActiveSubFilter(subFilter);
+    setIsRecentDocsOpen(false);
+  };
   const [navbarSearchQuery, setNavbarSearchQuery] = useState<string>("");
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
@@ -1172,17 +1357,26 @@ export default function App() {
           onUpdateLogo={handleUpdateStoreLogo}
         />
 
-        {/* Right Main Application Area */}
-        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          isSidebarCollapsed ? "lg:pl-20" : "lg:pl-68"
-        }`}>
+        {/* Right Main Application Area with Framer Motion Synchronized Transition */}
+        <motion.div 
+          initial={false}
+          animate={{
+            paddingLeft: isLargeScreen ? (isSidebarCollapsed ? 80 : 272) : 0
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 30,
+            mass: 0.8
+          }}
+          className="flex-1 flex flex-col min-w-0"
+        >
           
-          {/* Top Application Header Bar - Single Unified Navbar */}
-          <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 px-3 sm:px-6 py-2.5 shadow-2xs">
-            <div className="flex items-center justify-between gap-3 min-w-0">
-              
-              {/* Left Group: Mobile Toggle, Store Brand, Breadcrumbs */}
-              <div className="flex items-center gap-2.5 min-w-0">
+          {/* Top Application Header Bar - 2-Bar Header: Baris 1 Identitas Toko & Breadcrumbs, Baris 2 Toolbar Aksi & Pencarian di Bawah Logo */}
+          <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+            {/* BARIS 1: Logo Perusahaan, Identitas Toko, dan Breadcrumbs Navigasi */}
+            <div className="px-3 sm:px-6 py-2.5 border-b border-slate-100 flex items-center justify-between gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <button
                   onClick={() => setIsMobileSidebarOpen(true)}
                   className="lg:hidden p-1.5 rounded-xl text-slate-600 hover:bg-slate-100 transition cursor-pointer shrink-0"
@@ -1191,13 +1385,13 @@ export default function App() {
                   <Menu className="w-5 h-5" />
                 </button>
 
-                {/* Informasi Toko Sembako Berkah Mandiri Badge */}
+                {/* Informasi & Logo Usaha */}
                 <div 
                   onClick={() => {
                     setActiveTab("pengaturan");
                     setActiveSubFilter("profil");
                   }}
-                  className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer shrink-0"
+                  className="flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100/80 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer shrink-0"
                   title="Klik untuk membuka informasi toko & profil usaha"
                 >
                   {/* Dynamic Logo Box with quick upload option */}
@@ -1207,7 +1401,7 @@ export default function App() {
                       headerLogoInputRef.current?.click();
                     }}
                     title="Klik untuk mengganti logo perusahaan"
-                    className="relative group w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-xs cursor-pointer border border-slate-200 bg-indigo-600 text-white flex items-center justify-center"
+                    className="relative group w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-xs cursor-pointer border border-slate-200 bg-indigo-600 text-white flex items-center justify-center"
                   >
                     {storeConfig.storeLogo ? (
                       <img 
@@ -1244,12 +1438,12 @@ export default function App() {
                       }}
                     />
                   </div>
-                  <div className="min-w-0 hidden sm:block">
-                    <div className="flex items-center gap-1.5">
-                      <h2 className="text-xs font-bold text-slate-900 truncate max-w-[130px] md:max-w-[170px]">
-                        {storeConfig.storeName || "Toko Sembako Berkah Mandiri"}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[160px] sm:max-w-[260px]">
+                        {storeConfig.storeName || "PT. JAGO JAGA JAYA"}
                       </h2>
-                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded font-mono">
+                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded font-mono shrink-0">
                         SAK EMKM
                       </span>
                     </div>
@@ -1260,11 +1454,11 @@ export default function App() {
                 </div>
 
                 {/* Breadcrumbs Navigation */}
-                <div className="hidden xl:flex items-center gap-1.5 text-xs text-slate-400 min-w-0 pl-2 border-l border-slate-200">
+                <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 min-w-0 pl-3 border-l border-slate-200">
                   {pageInfo.parentTitle && (
                     <>
                       <span 
-                        className="hover:text-slate-600 transition cursor-pointer truncate max-w-[110px]"
+                        className="hover:text-slate-600 transition cursor-pointer truncate max-w-[130px]"
                         onClick={() => {
                           if (pageInfo.parentTitle === "Kas & Bank") {
                             setActiveTab("transaksi");
@@ -1283,46 +1477,48 @@ export default function App() {
                       >
                         {pageInfo.parentTitle}
                       </span>
-                      <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                     </>
                   )}
-                  <span className="text-slate-800 font-bold truncate max-w-[160px]">
+                  <span className="text-slate-800 font-bold truncate max-w-[200px]">
                     {pageInfo.title}
                   </span>
                 </div>
               </div>
+            </div>
 
-              {/* Center / Search Input */}
-              <div className="hidden md:flex flex-1 max-w-xs lg:max-w-sm relative" id="header-search-container">
-                <div className="relative w-full flex items-center">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={navbarSearchQuery}
-                    onChange={(e) => setNavbarSearchQuery(e.target.value)}
-                    placeholder="Cari menu, fitur, laporan, jurnal... (Ctrl+K)"
-                    className="w-full bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-800 text-xs pl-8 pr-12 py-1.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
-                  />
-                  {navbarSearchQuery ? (
-                    <button
-                      onClick={() => setNavbarSearchQuery("")}
-                      className="absolute right-2.5 p-0.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      title="Hapus pencarian"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <kbd className="hidden lg:inline-block absolute right-2 text-[9px] font-mono text-slate-400 bg-white border border-slate-200 px-1 py-0.2 rounded shadow-2xs pointer-events-none">
-                      ⌘K
-                    </kbd>
-                  )}
-                </div>
+            {/* BARIS 2 (DI BAWAH LOGO): Pencarian dan Seluruh Tombol Aksi yang Dimarking Pengguna */}
+            <div className="px-3 sm:px-6 py-2 bg-slate-50/60 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 min-w-0">
+              
+              {/* 1. Pencarian Global */}
+              <div className="relative flex-1 min-w-[200px] max-w-sm lg:max-w-md">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={navbarSearchQuery}
+                  onChange={(e) => setNavbarSearchQuery(e.target.value)}
+                  placeholder="Cari menu, fitur, laporan, jurnal... (Ctrl+K)"
+                  className="w-full bg-white text-slate-800 text-xs pl-8.5 pr-12 py-1.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition shadow-2xs"
+                />
+                {navbarSearchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setNavbarSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono text-slate-400 bg-slate-50 border border-slate-200 px-1 py-0.2 rounded shadow-2xs pointer-events-none">
+                    ⌘K
+                  </kbd>
+                )}
               </div>
 
-              {/* Right Action Group: Buat Transaksi, NAVBAR PRINT (ACTIVE!), Lisensi, Profil, Keluar */}
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                
-                {/* 1. Buat Transaksi */}
+              {/* 2. Kelompok Tombol Aksi (Tepat di bawah logo) */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap shrink-0">
+                {/* A. Buat Transaksi */}
                 <button
                   onClick={() => {
                     setActiveTab("transaksi");
@@ -1332,48 +1528,159 @@ export default function App() {
                   title="Catat transaksi penjualan, pembelian, atau beban"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">+ Buat Transaksi</span>
-                  <span className="sm:hidden">+ Transaksi</span>
+                  <span>+ Buat Transaksi</span>
                 </button>
 
-                {/* 2. NAVBAR PRINT (AKTIF & LANGSUNG BISA DICETAK KE PRINTER) */}
+                {/* B. RECENT DOCUMENTS SHORTCUT (Pintasan 3 Dokumen Laporan Terakhir) */}
+                <div className="relative" ref={recentDocsRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsRecentDocsOpen(prev => !prev)}
+                    className={`flex items-center gap-1.5 text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl border transition cursor-pointer shadow-2xs shrink-0 ${
+                      isRecentDocsOpen || activeTab === "laporan"
+                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                        : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300"
+                    }`}
+                    title="Buka kembali 3 dokumen laporan keuangan terakhir yang dilihat"
+                  >
+                    <Clock className={`w-3.5 h-3.5 ${isRecentDocsOpen || activeTab === "laporan" ? "text-indigo-300" : "text-indigo-600"}`} />
+                    <span>Dokumen Terakhir</span>
+                    <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                      isRecentDocsOpen || activeTab === "laporan"
+                        ? "bg-slate-700 text-indigo-200"
+                        : "bg-indigo-100 text-indigo-800"
+                    }`}>
+                      {recentReports.length}
+                    </span>
+                    <ChevronDown className={`w-3 h-3 transition-transform ${isRecentDocsOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {/* Dropdown Menu with Framer Motion Animation */}
+                  <AnimatePresence>
+                    {isRecentDocsOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute left-0 mt-1.5 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-2.5 z-50 overflow-hidden"
+                      >
+                        <div className="px-3.5 pb-2 mb-1.5 border-b border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="text-xs font-bold text-slate-800">Dokumen Terakhir</span>
+                          </div>
+                          <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                            3 Laporan Finansial
+                          </span>
+                        </div>
+
+                        <div className="px-1.5 space-y-1">
+                          {recentReports.map((report, idx) => {
+                            const isCurrentlyActive = activeTab === "laporan" && (activeSubFilter === report.subFilter || (!activeSubFilter && report.subFilter === "labarugi"));
+                            return (
+                              <button
+                                key={report.id || report.subFilter}
+                                type="button"
+                                onClick={() => handleOpenRecentReport(report.subFilter)}
+                                className={`w-full flex items-center gap-2.5 p-2 rounded-xl transition text-left cursor-pointer group ${
+                                  isCurrentlyActive
+                                    ? "bg-indigo-50/80 border border-indigo-200/80"
+                                    : "hover:bg-slate-50 border border-transparent"
+                                }`}
+                              >
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-2xs ${
+                                  report.iconName === "chart" ? "bg-emerald-100 text-emerald-700" :
+                                  report.iconName === "scale" ? "bg-blue-100 text-blue-700" :
+                                  report.iconName === "activity" ? "bg-indigo-100 text-indigo-700" :
+                                  report.iconName === "receipt" ? "bg-violet-100 text-violet-700" :
+                                  "bg-amber-100 text-amber-700"
+                                }`}>
+                                  {report.iconName === "chart" && <BarChart3 className="w-4 h-4" />}
+                                  {report.iconName === "scale" && <Scale className="w-4 h-4" />}
+                                  {report.iconName === "activity" && <Activity className="w-4 h-4" />}
+                                  {report.iconName === "receipt" && <Receipt className="w-4 h-4" />}
+                                  {report.iconName !== "chart" && report.iconName !== "scale" && report.iconName !== "activity" && report.iconName !== "receipt" && <FileText className="w-4 h-4" />}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+                                      {report.title}
+                                    </span>
+                                    <span className="text-[9px] font-mono text-slate-400 shrink-0">
+                                      #{idx + 1}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                    {report.subtitle}
+                                  </p>
+                                </div>
+
+                                <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition shrink-0" />
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-2 pt-2 border-t border-slate-100 px-3 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab("laporan");
+                              setActiveSubFilter("labarugi");
+                              setIsRecentDocsOpen(false);
+                            }}
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>Buka Semua Laporan</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                          <span className="text-[10px] text-slate-400 font-mono">SAK EMKM</span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* C. NAVBAR PRINT */}
                 <button
                   type="button"
                   onClick={handleNavbarPrint}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-xs transition cursor-pointer active:scale-95 shrink-0"
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 sm:px-3 py-1.5 rounded-xl text-xs shadow-xs transition cursor-pointer active:scale-95 shrink-0"
                   title="Cetak Dokumen / Halaman Aktif Langsung ke Printer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Cetak / Print</span>
                 </button>
 
-                {/* 3. Status Lisensi Hardware */}
+                {/* C. Status Lisensi Hardware */}
                 <button
                   onClick={() => setShowActivationModal(true)}
-                  className={`hidden sm:flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer shadow-2xs shrink-0 ${
+                  className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer shadow-2xs shrink-0 ${
                     activeLicense 
                       ? activeLicense.licenseType === "trial" 
-                        ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100" 
-                        : "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
+                         ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100" 
+                         : "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
                       : "bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100 animate-pulse"
                   }`}
                   title="Status Lisensi Komputer"
                 >
                   <KeyRound className={`w-3.5 h-3.5 ${activeLicense ? (activeLicense.licenseType === "trial" ? "text-amber-600" : "text-emerald-600") : "text-rose-600"}`} />
-                  <span className="hidden md:inline">
+                  <span>
                     {activeLicense 
                       ? `Lisensi: ${activeLicense.licenseType === "lifetime" ? "Aktif" : activeLicense.licenseType === "annual" ? "Tahunan" : "Trial"}`
                       : "🔑 Aktivasi"}
                   </span>
                 </button>
 
-                {/* 4. Profil dan Pengaturan Usaha */}
+                {/* D. Profil dan Pengaturan Usaha */}
                 <button
                   onClick={() => {
                     setActiveTab("pengaturan");
                     setActiveSubFilter("profil");
                   }}
-                  className={`hidden lg:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition cursor-pointer shrink-0 ${
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition cursor-pointer shrink-0 ${
                     activeTab === "pengaturan"
                       ? "bg-slate-900 text-white border-slate-900 shadow-xs"
                       : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs"
@@ -1384,34 +1691,34 @@ export default function App() {
                   <span>Pengaturan</span>
                 </button>
 
-                {/* 5. User Profile Icon */}
+                {/* E. User Profile Icon */}
                 <div 
                   onClick={() => {
                     setActiveTab("pengaturan");
                     setActiveSubFilter("profil");
                   }}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-slate-50 transition cursor-pointer shrink-0"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white hover:bg-slate-50 transition cursor-pointer shrink-0"
                   title={`Profil: ${currentUser?.name || "Budi Santoso"}`}
                 >
                   <div className="w-5 h-5 rounded-lg bg-slate-900 text-emerald-400 font-bold flex items-center justify-center text-[10px] shadow-2xs">
                     {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
                   </div>
-                  <span className="hidden xl:inline text-[11px] font-bold text-slate-800 leading-tight">
-                    {currentUser?.name || "Budi"}
+                  <span className="text-[11px] font-bold text-slate-800 leading-tight">
+                    {currentUser?.name || "Budi Santoso"}
                   </span>
                 </div>
 
-                {/* 6. Keluar */}
+                {/* F. Keluar */}
                 <button
                   onClick={() => handleLogout("login")}
-                  className="flex items-center gap-1 p-1.5 sm:px-2 sm:py-1.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer shrink-0"
+                  className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer shrink-0"
                   title="Keluar dari akun"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline text-xs font-semibold">Keluar</span>
+                  <span className="text-xs font-semibold">Keluar</span>
                 </button>
-
               </div>
+
             </div>
           </header>
 
@@ -1524,8 +1831,25 @@ export default function App() {
                 />
               )}
 
-              {/* Pembelian > Tagihan Pembelian & Piutang (Sub Navbar) */}
-              {activeTab === "pembelian" && (
+              {/* Pembelian > Overview (Default / Sub Navbar) */}
+              {activeTab === "pembelian" && 
+                (activeSubFilter === "overview" || !activeSubFilter) && (
+                <PurchaseOverview
+                  stockItems={stockItems}
+                  storeConfig={storeConfig}
+                  currentUser={currentUser}
+                  transactions={transactions}
+                  onNavigateToTab={(tab, sub) => {
+                    setActiveTab(tab);
+                    if (sub) setActiveSubFilter(sub);
+                  }}
+                />
+              )}
+
+              {/* Pembelian > Tagihan Pembelian, Piutang, Pengiriman, Pesanan, Penawaran (Sub Navbar) */}
+              {activeTab === "pembelian" && 
+                activeSubFilter !== "overview" && 
+                activeSubFilter && (
                 <PurchaseManager
                   stockItems={stockItems}
                   storeConfig={storeConfig}
@@ -1582,13 +1906,23 @@ export default function App() {
                 />
               )}
 
-              {/* Laporan > Pemesanan per Produk */}
-              {activeTab === "laporan" && (activeSubFilter === "pemesanan" || activeSubFilter === "pemesanan-per-produk") && (
-                <OrderManager
-                  storeConfig={storeConfig}
+              {/* Laporan > 4 Reports from Photos (Pemesanan, Pergerakan Gudang, Pergerakan Inventori, Produksi) */}
+              {activeTab === "laporan" && (
+                activeSubFilter === "pemesanan" || 
+                activeSubFilter === "pemesanan-per-produk" ||
+                activeSubFilter === "pergerakan-gudang" ||
+                activeSubFilter === "pergerakan-inventori" ||
+                activeSubFilter === "produksi"
+              ) && (
+                <StockReportsManager
+                  reportType={
+                    activeSubFilter === "pemesanan-per-produk" ? "pemesanan" :
+                    (activeSubFilter as any)
+                  }
                   stockItems={stockItems}
-                  currentUser={currentUser}
-                  initialMode="report"
+                  transactions={transactions}
+                  storeConfig={storeConfig}
+                  onNavigateBack={() => setActiveSubFilter("labarugi")}
                   onNavigateToTab={(tab, sub) => {
                     setActiveTab(tab);
                     if (sub) setActiveSubFilter(sub);
@@ -1596,7 +1930,14 @@ export default function App() {
                 />
               )}
 
-              {activeTab === "laporan" && activeSubFilter !== "pengiriman" && activeSubFilter !== "ongkir" && activeSubFilter !== "pemesanan" && activeSubFilter !== "pemesanan-per-produk" && (
+              {activeTab === "laporan" && 
+                activeSubFilter !== "pengiriman" && 
+                activeSubFilter !== "ongkir" && 
+                activeSubFilter !== "pemesanan" && 
+                activeSubFilter !== "pemesanan-per-produk" &&
+                activeSubFilter !== "pergerakan-gudang" &&
+                activeSubFilter !== "pergerakan-inventori" &&
+                activeSubFilter !== "produksi" && (
                 <FinancialStatements
                   stats={stats}
                   transactions={transactions}
@@ -1667,7 +2008,7 @@ export default function App() {
             </div>
           </footer>
 
-        </div>
+        </motion.div>
 
       </div>
 
